@@ -1,16 +1,16 @@
 message(STATUS "Building using CMake version: ${CMAKE_VERSION}")
 cmake_minimum_required(VERSION 3.14)
 
-# Avoids a warning about timestamps on downloaded files (prefer new policy
-# if available))
+# Avoids a warning about timestamps on downloaded files (prefer new policy if
+# available))
 if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.23")
   cmake_policy(SET CMP0135 NEW)
 endif()
 
 include(FetchContent)
 
-if(NOT DEFINED CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 11)
+if(NOT DEFINED CMAKE_C_STANDARD)
+  set(CMAKE_C_STANDARD 11)
 endif()
 
 set(GEOARROW_GEOS_VERSION "0.1.0-SNAPSHOT")
@@ -28,7 +28,8 @@ option(GEOARROW_GEOS_CODE_COVERAGE "Enable coverage reporting" OFF)
 add_library(geoarrow_geos_coverage_config INTERFACE)
 
 if(GEOARROW_GEOS_CODE_COVERAGE)
-  target_compile_options(geoarrow_geos_coverage_config INTERFACE -O0 -g --coverage)
+  target_compile_options(geoarrow_geos_coverage_config INTERFACE -O0 -g
+                                                                 --coverage)
   target_link_options(geoarrow_geos_coverage_config INTERFACE --coverage)
 endif()
 
@@ -44,8 +45,11 @@ FetchContent_MakeAvailable(geoarrow_c)
 # Ensure GEOS
 find_package(GEOS REQUIRED)
 
-add_library(geoarrow_geos src/geoarrow_geos/geoarrow_geos.cc)
-target_link_libraries(geoarrow_geos PRIVATE GEOS::geos_c geoarrow)
+add_library(geoarrow_geos src/geoarrow_geos/geoarrow_geos.c)
+target_link_libraries(
+  geoarrow_geos
+  PUBLIC GEOS::geos_c
+  PRIVATE geoarrow)
 
 target_include_directories(
   geoarrow_geos
@@ -62,6 +66,10 @@ install(
 if(GEOARROW_GEOS_BUILD_TESTS)
   include(CTest)
 
+  if(NOT DEFINED CMAKE_CXX_STANDARD)
+    set(CMAKE_CXX_STANDARD 14)
+  endif()
+
   FetchContent_Declare(
     googletest
     URL https://github.com/google/googletest/archive/release-1.11.0.zip
@@ -75,7 +83,8 @@ if(GEOARROW_GEOS_BUILD_TESTS)
   add_executable(geoarrow_geos_test src/geoarrow_geos/geoarrow_geos_test.cc)
 
   if(GEOARROW_CODE_COVERAGE)
-    target_compile_options(geoarrow_geos_coverage_config INTERFACE -O0 -g --coverage)
+    target_compile_options(geoarrow_geos_coverage_config INTERFACE -O0 -g
+                                                                   --coverage)
     target_link_options(geoarrow_geos_coverage_config INTERFACE --coverage)
     target_link_libraries(geoarrow_geos geoarrow_geos_coverage_config)
   endif()

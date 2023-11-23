@@ -2,6 +2,7 @@
 #ifndef GEOARROW_GEOS_H_INCLUDED
 #define GEOARROW_GEOS_H_INCLUDED
 
+#include <geos_c.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -55,9 +56,29 @@ struct ArrowArray {
 
 #endif
 
+typedef int GeoArrowGEOSErrorCode;
+
 const char* GeoArrowGEOSVersionGEOS(void);
 
 const char* GeoArrowGEOSVersionGeoArrow(void);
+
+struct GeoArrowGEOSArrayBuilder;
+
+GeoArrowGEOSErrorCode GeoArrowGEOSArrayBuilderCreate(
+    GEOSContextHandle_t handle, struct ArrowSchema* schema,
+    struct GeoArrowGEOSArrayBuilder** out);
+
+void GeoArrowGEOSArrayBuilderDestroy(struct GeoArrowGEOSArrayBuilder* builder);
+
+const char* GeoArrowGEOSArrayBuilderGetLastError(
+    struct GeoArrowGEOSArrayBuilder* builder);
+
+GeoArrowGEOSErrorCode GeoArrowGEOSArrayBuilderAppend(
+    struct GeoArrowGEOSArrayBuilder* builder, GEOSGeometry** geom, size_t geom_size,
+    size_t* n_appended);
+
+GeoArrowGEOSErrorCode GeoArrowGEOSArrayBuilderFinish(
+    struct GeoArrowGEOSArrayBuilder* builder, struct ArrowArray* out);
 
 #ifdef __cplusplus
 }
