@@ -58,6 +58,14 @@ struct ArrowArray {
 
 #define GEOARROW_GEOS_OK 0
 
+enum GeoArrowGEOSEncoding {
+  GEOARROW_GEOS_ENCODING_UNKNOWN = 0,
+  GEOARROW_GEOS_ENCODING_WKT,
+  GEOARROW_GEOS_ENCODING_WKB,
+  GEOARROW_GEOS_ENCODING_GEOARROW,
+  GEOARROW_GEOS_ENCODING_GEOARROW_INTERLEAVED
+};
+
 typedef int GeoArrowGEOSErrorCode;
 
 const char* GeoArrowGEOSVersionGEOS(void);
@@ -69,6 +77,10 @@ struct GeoArrowGEOSArrayBuilder;
 GeoArrowGEOSErrorCode GeoArrowGEOSArrayBuilderCreate(
     GEOSContextHandle_t handle, struct ArrowSchema* schema,
     struct GeoArrowGEOSArrayBuilder** out);
+
+GeoArrowGEOSErrorCode GeoArrowGEOSMakeSchema(
+    GEOSContextHandle_t handle, int32_t encoding, int32_t wkb_type,
+    struct ArrowSchema* out);
 
 void GeoArrowGEOSArrayBuilderDestroy(struct GeoArrowGEOSArrayBuilder* builder);
 

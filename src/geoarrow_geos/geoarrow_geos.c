@@ -42,6 +42,7 @@ GeoArrowGEOSErrorCode GeoArrowGEOSArrayBuilderCreate(
   struct GeoArrowGEOSArrayBuilder* builder =
       (struct GeoArrowGEOSArrayBuilder*)malloc(sizeof(struct GeoArrowGEOSArrayBuilder));
   if (builder == NULL) {
+    *out = NULL;
     return ENOMEM;
   }
 
@@ -51,6 +52,40 @@ GeoArrowGEOSErrorCode GeoArrowGEOSArrayBuilderCreate(
   GEOARROW_RETURN_NOT_OK(
       GeoArrowBuilderInitFromSchema(&builder->builder, schema, &builder->error));
   GEOARROW_RETURN_NOT_OK(GeoArrowBuilderInitVisitor(&builder->builder, &builder->v));
+  return GEOARROW_OK;
+}
+
+GeoArrowGEOSErrorCode GeoArrowGEOSMakeSchema(GEOSContextHandle_t handle, int32_t encoding,
+                                             int32_t wkb_type, struct ArrowSchema* out) {
+  enum GeoArrowType type = GEOARROW_TYPE_UNINITIALIZED;
+  enum GeoArrowGeometryType geometry_type = GEOARROW_GEOMETRY_TYPE_GEOMETRY;
+  enum GeoArrowDimensions dimensions = GEOARROW_DIMENSIONS_UNKNOWN;
+  enum GeoArrowCoordType coord_type = GEOARROW_COORD_TYPE_UNKNOWN;
+
+  switch (encoding) {
+    case GEOARROW_GEOS_ENCODING_WKT:
+      type = GEOARROW_TYPE_WKT;
+      break;
+    case GEOARROW_GEOS_ENCODING_WKB:
+      type = GEOARROW_TYPE_WKB;
+      break;
+    case GEOARROW_GEOS_ENCODING_GEOARROW:
+      coord_type = GEOARROW_COORD_TYPE_SEPARATE;
+      break;
+    case GEOARROW_GEOS_ENCODING_GEOARROW_INTERLEAVED:
+      coord_type = GEOARROW_COORD_TYPE_INTERLEAVED;
+      break;
+    default:
+      return EINVAL;
+  }
+
+  if (type == GEOARROW_TYPE_UNINITIALIZED) {
+    geometry_type = wkb_type % 1000;
+    dimensions = wkb_type / 1000 + 1;
+    type = GeoArrowMakeType(geometry_type, dimensions, GEOARROW_COORD_TYPE_SEPARATE);
+  }
+
+  GEOARROW_RETURN_NOT_OK(GeoArrowSchemaInitExtension(out, type));
   return GEOARROW_OK;
 }
 
