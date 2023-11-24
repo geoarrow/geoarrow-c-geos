@@ -74,7 +74,7 @@ const char* GeoArrowGEOSArrayBuilderGetLastError(
     struct GeoArrowGEOSArrayBuilder* builder);
 
 GeoArrowGEOSErrorCode GeoArrowGEOSArrayBuilderAppend(
-    struct GeoArrowGEOSArrayBuilder* builder, GEOSGeometry** geom, size_t geom_size,
+    struct GeoArrowGEOSArrayBuilder* builder, const GEOSGeometry** geom, size_t geom_size,
     size_t* n_appended);
 
 GeoArrowGEOSErrorCode GeoArrowGEOSArrayBuilderFinish(
