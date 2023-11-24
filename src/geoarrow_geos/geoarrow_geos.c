@@ -10,6 +10,7 @@
 
 #include "geoarrow_geos.h"
 
+// These should really be in the geoarrow header
 #define _GEOARROW_CONCAT(x, y) x##y
 #define _GEOARROW_MAKE_NAME(x, y) _GEOARROW_CONCAT(x, y)
 
@@ -80,6 +81,9 @@ static GeoArrowErrorCode GeoArrowGEOSArrayBuilderEnsureCoords(
 
 void GeoArrowGEOSArrayBuilderDestroy(struct GeoArrowGEOSArrayBuilder* builder) {
   GeoArrowBuilderReset(&builder->builder);
+  if (builder->coords != NULL) {
+    free(builder->coords);
+  }
   free(builder);
 }
 

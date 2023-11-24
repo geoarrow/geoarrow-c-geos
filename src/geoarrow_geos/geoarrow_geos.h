@@ -56,6 +56,8 @@ struct ArrowArray {
 
 #endif
 
+#define GEOARROW_GEOS_OK 0
+
 typedef int GeoArrowGEOSErrorCode;
 
 const char* GeoArrowGEOSVersionGEOS(void);
