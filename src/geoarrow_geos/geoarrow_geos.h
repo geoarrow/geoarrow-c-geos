@@ -78,9 +78,8 @@ GeoArrowGEOSErrorCode GeoArrowGEOSArrayBuilderCreate(
     GEOSContextHandle_t handle, struct ArrowSchema* schema,
     struct GeoArrowGEOSArrayBuilder** out);
 
-GeoArrowGEOSErrorCode GeoArrowGEOSMakeSchema(
-    GEOSContextHandle_t handle, int32_t encoding, int32_t wkb_type,
-    struct ArrowSchema* out);
+GeoArrowGEOSErrorCode GeoArrowGEOSMakeSchema(int32_t encoding, int32_t wkb_type,
+                                             struct ArrowSchema* out);
 
 void GeoArrowGEOSArrayBuilderDestroy(struct GeoArrowGEOSArrayBuilder* builder);
 

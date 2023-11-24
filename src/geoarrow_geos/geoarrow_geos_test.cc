@@ -71,6 +71,19 @@ class GeoArrowGEOSCppArrayBuilder {
   }
 };
 
+class ArrowCppSchema {
+ public:
+  ArrowSchema schema;
+
+  ArrowCppSchema() { schema.release = nullptr; }
+
+  ~ArrowCppSchema() {
+    if (schema.release != nullptr) {
+      schema.release(&schema);
+    }
+  }
+};
+
 TEST(GeoArrowGEOSTest, TestVersions) {
   ASSERT_EQ(std::string(GeoArrowGEOSVersionGEOS()).substr(0, 1), "3");
   ASSERT_STREQ(GeoArrowGEOSVersionGeoArrow(), "0.2.0-SNAPSHOT");
@@ -81,7 +94,17 @@ TEST(GeoArrowGEOSTest, TestArrayBuilderRoundtripWKT) {
   GEOSCppWKTReader reader(handle.handle);
   GEOSCppGeometry geom(handle.handle);
   GeoArrowGEOSCppArrayBuilder builder(handle.handle);
+  ArrowCppSchema schema;
+
+  ASSERT_EQ(GeoArrowGEOSMakeSchema(GEOARROW_GEOS_ENCODING_WKT, 0, &schema.schema),
+            GEOARROW_GEOS_OK);
+  ASSERT_EQ(builder.Init(&schema.schema), GEOARROW_GEOS_OK);
 
   std::string wkt = "POINT (0 1)";
   ASSERT_EQ(reader.Read(wkt, &geom.ptr), GEOARROW_GEOS_OK);
+  size_t n = 0;
+  const GEOSGeometry* geom_const = geom.ptr;
+  EXPECT_EQ(GeoArrowGEOSArrayBuilderAppend(builder.ptr, &geom_const, 1, &n),
+            GEOARROW_GEOS_OK);
+  ASSERT_EQ(n, 1);
 }

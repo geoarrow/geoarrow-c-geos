@@ -31,6 +31,8 @@ struct GeoArrowGEOSArrayBuilder {
   GEOSContextHandle_t handle;
   struct GeoArrowError error;
   struct GeoArrowBuilder builder;
+  struct GeoArrowWKTWriter wkt_writer;
+  struct GeoArrowWKBWriter wkb_writer;
   struct GeoArrowVisitor v;
   struct GeoArrowCoordView coords_view;
   double* coords;
@@ -49,14 +51,31 @@ GeoArrowGEOSErrorCode GeoArrowGEOSArrayBuilderCreate(
   memset(builder, 0, sizeof(struct GeoArrowGEOSArrayBuilder));
   *out = builder;
 
-  GEOARROW_RETURN_NOT_OK(
-      GeoArrowBuilderInitFromSchema(&builder->builder, schema, &builder->error));
-  GEOARROW_RETURN_NOT_OK(GeoArrowBuilderInitVisitor(&builder->builder, &builder->v));
+  struct GeoArrowSchemaView schema_view;
+  GEOARROW_RETURN_NOT_OK(GeoArrowSchemaViewInit(&schema_view, schema, &builder->error));
+  switch (schema_view.type) {
+    case GEOARROW_TYPE_WKT:
+      GEOARROW_RETURN_NOT_OK(GeoArrowWKTWriterInit(&builder->wkt_writer));
+      GeoArrowWKTWriterInitVisitor(&builder->wkt_writer, &builder->v);
+      break;
+    case GEOARROW_TYPE_WKB:
+      GEOARROW_RETURN_NOT_OK(GeoArrowWKBWriterInit(&builder->wkb_writer));
+      GeoArrowWKBWriterInitVisitor(&builder->wkb_writer, &builder->v);
+      break;
+    default:
+      GEOARROW_RETURN_NOT_OK(
+          GeoArrowBuilderInitFromSchema(&builder->builder, schema, &builder->error));
+      GEOARROW_RETURN_NOT_OK(GeoArrowBuilderInitVisitor(&builder->builder, &builder->v));
+      break;
+  }
+
+  builder->handle = handle;
+  builder->v.error = &builder->error;
   return GEOARROW_OK;
 }
 
-GeoArrowGEOSErrorCode GeoArrowGEOSMakeSchema(GEOSContextHandle_t handle, int32_t encoding,
-                                             int32_t wkb_type, struct ArrowSchema* out) {
+GeoArrowGEOSErrorCode GeoArrowGEOSMakeSchema(int32_t encoding, int32_t wkb_type,
+                                             struct ArrowSchema* out) {
   enum GeoArrowType type = GEOARROW_TYPE_UNINITIALIZED;
   enum GeoArrowGeometryType geometry_type = GEOARROW_GEOMETRY_TYPE_GEOMETRY;
   enum GeoArrowDimensions dimensions = GEOARROW_DIMENSIONS_UNKNOWN;
@@ -115,10 +134,22 @@ static GeoArrowErrorCode GeoArrowGEOSArrayBuilderEnsureCoords(
 }
 
 void GeoArrowGEOSArrayBuilderDestroy(struct GeoArrowGEOSArrayBuilder* builder) {
-  GeoArrowBuilderReset(&builder->builder);
   if (builder->coords != NULL) {
     free(builder->coords);
   }
+
+  if (builder->builder.private_data != NULL) {
+    GeoArrowBuilderReset(&builder->builder);
+  }
+
+  if (builder->wkt_writer.private_data != NULL) {
+    GeoArrowWKTWriterReset(&builder->wkt_writer);
+  }
+
+  if (builder->wkb_writer.private_data != NULL) {
+    GeoArrowWKBWriterReset(&builder->wkb_writer);
+  }
+
   free(builder);
 }
 
@@ -188,8 +219,10 @@ static GeoArrowErrorCode VisitGeometry(struct GeoArrowGEOSArrayBuilder* builder,
   switch (coord_dimension) {
     case 2:
       geoarrow_dims = GEOARROW_DIMENSIONS_XY;
+      break;
     case 3:
       geoarrow_dims = GEOARROW_DIMENSIONS_XYZ;
+      break;
     default:
       GeoArrowErrorSet(v->error, "Unexpected GEOSGeom_getCoordinateDimension_r: %d",
                        coord_dimension);
