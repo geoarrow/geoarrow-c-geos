@@ -7,9 +7,20 @@
 #define GEOS_USE_ONLY_R_API
 #include <geoarrow.h>
 #include <geos_c.h>
-#include <nanoarrow.h>
 
 #include "geoarrow_geos.h"
+
+#define _GEOARROW_CONCAT(x, y) x##y
+#define _GEOARROW_MAKE_NAME(x, y) _GEOARROW_CONCAT(x, y)
+
+#define _GEOARROW_RETURN_NOT_OK_IMPL(NAME, EXPR) \
+  do {                                           \
+    const int NAME = (EXPR);                     \
+    if (NAME) return NAME;                       \
+  } while (0)
+
+#define GEOARROW_RETURN_NOT_OK(EXPR) \
+  _GEOARROW_RETURN_NOT_OK_IMPL(_GEOARROW_MAKE_NAME(errno_status_, __COUNTER__), EXPR)
 
 const char* GeoArrowGEOSVersionGEOS(void) { return GEOSversion(); }
 
@@ -36,9 +47,9 @@ GeoArrowGEOSErrorCode GeoArrowGEOSArrayBuilderCreate(
   memset(builder, 0, sizeof(struct GeoArrowGEOSArrayBuilder));
   *out = builder;
 
-  NANOARROW_RETURN_NOT_OK(
+  GEOARROW_RETURN_NOT_OK(
       GeoArrowBuilderInitFromSchema(&builder->builder, schema, &builder->error));
-  NANOARROW_RETURN_NOT_OK(GeoArrowBuilderInitVisitor(&builder->builder, &builder->v));
+  GEOARROW_RETURN_NOT_OK(GeoArrowBuilderInitVisitor(&builder->builder, &builder->v));
   return GEOARROW_OK;
 }
 
@@ -104,7 +115,7 @@ static GeoArrowErrorCode VisitCoords(struct GeoArrowGEOSArrayBuilder* builder,
   }
 
   // Make sure we have enough space to copy the coordinates into
-  NANOARROW_RETURN_NOT_OK(GeoArrowGEOSArrayBuilderEnsureCoords(builder, size, dims));
+  GEOARROW_RETURN_NOT_OK(GeoArrowGEOSArrayBuilderEnsureCoords(builder, size, dims));
 
   // Not sure exactly how M coordinates work in GEOS yet
   result =
@@ -115,7 +126,7 @@ static GeoArrowErrorCode VisitCoords(struct GeoArrowGEOSArrayBuilder* builder,
   }
 
   // Call the visitor method
-  NANOARROW_RETURN_NOT_OK(v->coords(v, &builder->coords_view));
+  GEOARROW_RETURN_NOT_OK(v->coords(v, &builder->coords_view));
 
   return GEOARROW_OK;
 }
@@ -124,7 +135,7 @@ static GeoArrowErrorCode VisitGeometry(struct GeoArrowGEOSArrayBuilder* builder,
                                        const GEOSGeometry* geom,
                                        struct GeoArrowVisitor* v) {
   if (geom == NULL) {
-    NANOARROW_RETURN_NOT_OK(v->null_feat(v));
+    GEOARROW_RETURN_NOT_OK(v->null_feat(v));
     return GEOARROW_OK;
   }
 
@@ -174,7 +185,7 @@ static GeoArrowErrorCode VisitGeometry(struct GeoArrowGEOSArrayBuilder* builder,
       return EINVAL;
   }
 
-  NANOARROW_RETURN_NOT_OK(v->geom_start(v, geoarrow_type, geoarrow_dims));
+  GEOARROW_RETURN_NOT_OK(v->geom_start(v, geoarrow_type, geoarrow_dims));
 
   switch (type_id) {
     case GEOS_POINT:
@@ -186,7 +197,7 @@ static GeoArrowErrorCode VisitGeometry(struct GeoArrowGEOSArrayBuilder* builder,
         return ENOMEM;
       }
 
-      NANOARROW_RETURN_NOT_OK(VisitCoords(builder, seq, v));
+      GEOARROW_RETURN_NOT_OK(VisitCoords(builder, seq, v));
       break;
     }
 
@@ -197,15 +208,15 @@ static GeoArrowErrorCode VisitGeometry(struct GeoArrowGEOSArrayBuilder* builder,
         return ENOMEM;
       }
 
-      NANOARROW_RETURN_NOT_OK(v->ring_start(v));
+      GEOARROW_RETURN_NOT_OK(v->ring_start(v));
       const GEOSCoordSequence* seq = GEOSGeom_getCoordSeq_r(builder->handle, geom);
       if (seq == NULL) {
         GeoArrowErrorSet(v->error, "GEOSGeom_getCoordSeq_r() failed");
         return ENOMEM;
       }
 
-      NANOARROW_RETURN_NOT_OK(VisitCoords(builder, seq, v));
-      NANOARROW_RETURN_NOT_OK(v->ring_end(v));
+      GEOARROW_RETURN_NOT_OK(VisitCoords(builder, seq, v));
+      GEOARROW_RETURN_NOT_OK(v->ring_end(v));
 
       int size = GEOSGetNumInteriorRings_r(builder->handle, geom);
       for (int i = 0; i < size; i++) {
@@ -215,15 +226,15 @@ static GeoArrowErrorCode VisitGeometry(struct GeoArrowGEOSArrayBuilder* builder,
           return ENOMEM;
         }
 
-        NANOARROW_RETURN_NOT_OK(v->ring_start(v));
+        GEOARROW_RETURN_NOT_OK(v->ring_start(v));
         seq = GEOSGeom_getCoordSeq_r(builder->handle, geom);
         if (seq == NULL) {
           GeoArrowErrorSet(v->error, "GEOSGeom_getCoordSeq_r() failed");
           return ENOMEM;
         }
 
-        NANOARROW_RETURN_NOT_OK(VisitCoords(builder, seq, v));
-        NANOARROW_RETURN_NOT_OK(v->ring_end(v));
+        GEOARROW_RETURN_NOT_OK(VisitCoords(builder, seq, v));
+        GEOARROW_RETURN_NOT_OK(v->ring_end(v));
       }
 
       break;
@@ -241,7 +252,7 @@ static GeoArrowErrorCode VisitGeometry(struct GeoArrowGEOSArrayBuilder* builder,
           return ENOMEM;
         }
 
-        NANOARROW_RETURN_NOT_OK(VisitGeometry(builder, child, v));
+        GEOARROW_RETURN_NOT_OK(VisitGeometry(builder, child, v));
       }
     }
     default:
@@ -249,7 +260,7 @@ static GeoArrowErrorCode VisitGeometry(struct GeoArrowGEOSArrayBuilder* builder,
       return EINVAL;
   }
 
-  NANOARROW_RETURN_NOT_OK(v->geom_end(v));
+  GEOARROW_RETURN_NOT_OK(v->geom_end(v));
   return GEOARROW_OK;
 }
 
@@ -259,9 +270,9 @@ GeoArrowGEOSErrorCode GeoArrowGEOSArrayBuilderAppend(
   *n_appended = 0;
 
   for (size_t i = 0; i < geom_size; i++) {
-    NANOARROW_RETURN_NOT_OK(builder->v.feat_start(&builder->v));
-    NANOARROW_RETURN_NOT_OK(VisitGeometry(builder, geom[i], &builder->v));
-    NANOARROW_RETURN_NOT_OK(builder->v.feat_start(&builder->v));
+    GEOARROW_RETURN_NOT_OK(builder->v.feat_start(&builder->v));
+    GEOARROW_RETURN_NOT_OK(VisitGeometry(builder, geom[i], &builder->v));
+    GEOARROW_RETURN_NOT_OK(builder->v.feat_start(&builder->v));
     *n_appended = i + 1;
   }
 
