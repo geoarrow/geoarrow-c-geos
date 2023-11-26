@@ -284,6 +284,10 @@ static GeoArrowErrorCode VisitGeometry(struct GeoArrowGEOSArrayBuilder* builder,
     }
 
     case GEOS_POLYGON: {
+      if (GEOSisEmpty_r(builder->handle, geom)) {
+        break;
+      }
+
       const GEOSGeometry* ring = GEOSGetExteriorRing_r(builder->handle, geom);
       if (ring == NULL) {
         GeoArrowErrorSet(v->error, "GEOSGetExteriorRing_r() failed");
@@ -291,7 +295,7 @@ static GeoArrowErrorCode VisitGeometry(struct GeoArrowGEOSArrayBuilder* builder,
       }
 
       GEOARROW_RETURN_NOT_OK(v->ring_start(v));
-      const GEOSCoordSequence* seq = GEOSGeom_getCoordSeq_r(builder->handle, geom);
+      const GEOSCoordSequence* seq = GEOSGeom_getCoordSeq_r(builder->handle, ring);
       if (seq == NULL) {
         GeoArrowErrorSet(v->error, "GEOSGeom_getCoordSeq_r() failed");
         return ENOMEM;
@@ -309,7 +313,7 @@ static GeoArrowErrorCode VisitGeometry(struct GeoArrowGEOSArrayBuilder* builder,
         }
 
         GEOARROW_RETURN_NOT_OK(v->ring_start(v));
-        seq = GEOSGeom_getCoordSeq_r(builder->handle, geom);
+        seq = GEOSGeom_getCoordSeq_r(builder->handle, ring);
         if (seq == NULL) {
           GeoArrowErrorSet(v->error, "GEOSGeom_getCoordSeq_r() failed");
           return ENOMEM;

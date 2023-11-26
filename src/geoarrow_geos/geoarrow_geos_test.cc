@@ -102,7 +102,7 @@ TEST(GeoArrowGEOSTest, TestVersions) {
   ASSERT_STREQ(GeoArrowGEOSVersionGeoArrow(), "0.2.0-SNAPSHOT");
 }
 
-TEST(GeoArrowGEOSTest, TestArrayBuilderRoundtripWKT) {
+void TestBuilderRoundtripWKT(const std::string& wkt) {
   GEOSCppHandle handle;
   GEOSCppWKTReader reader(handle.handle);
   GEOSCppGeometry geom(handle.handle);
@@ -113,12 +113,13 @@ TEST(GeoArrowGEOSTest, TestArrayBuilderRoundtripWKT) {
             GEOARROW_GEOS_OK);
   ASSERT_EQ(builder.Init(&schema.schema), GEOARROW_GEOS_OK);
 
-  std::string wkt = "POINT (0 1)";
   ASSERT_EQ(reader.Read(wkt, &geom.ptr), GEOARROW_GEOS_OK);
   size_t n = 0;
   const GEOSGeometry* geom_const = geom.ptr;
-  EXPECT_EQ(GeoArrowGEOSArrayBuilderAppend(builder.ptr, &geom_const, 1, &n),
-            GEOARROW_GEOS_OK);
+  ASSERT_EQ(GeoArrowGEOSArrayBuilderAppend(builder.ptr, &geom_const, 1, &n),
+            GEOARROW_GEOS_OK)
+      << "WKT: " << wkt
+      << " Error: " << GeoArrowGEOSArrayBuilderGetLastError(builder.ptr);
   ASSERT_EQ(n, 1);
 
   ArrowCppArray array;
@@ -129,6 +130,30 @@ TEST(GeoArrowGEOSTest, TestArrayBuilderRoundtripWKT) {
 
   const auto offsets = reinterpret_cast<const int32_t*>(array.array.buffers[1]);
   const auto data = reinterpret_cast<const char*>(array.array.buffers[2]);
+
   std::string wkt_out(data + offsets[0], offsets[1] - offsets[0]);
   EXPECT_EQ(wkt_out, wkt);
+}
+
+TEST(GeoArrowGEOSTest, TestArrayBuilderRoundtripWKT) {
+  TestBuilderRoundtripWKT("POINT EMPTY");
+  TestBuilderRoundtripWKT("POINT (0 1)");
+  TestBuilderRoundtripWKT("POINT Z EMPTY");
+  TestBuilderRoundtripWKT("POINT Z (0 1 2)");
+
+  TestBuilderRoundtripWKT("LINESTRING EMPTY");
+  TestBuilderRoundtripWKT("LINESTRING (0 1, 2 3)");
+  TestBuilderRoundtripWKT("LINESTRING Z EMPTY");
+  TestBuilderRoundtripWKT("LINESTRING Z (0 1 2, 3 4 5)");
+
+  TestBuilderRoundtripWKT("POLYGON EMPTY");
+  TestBuilderRoundtripWKT("POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))");
+  TestBuilderRoundtripWKT(
+      "POLYGON ((35 10, 45 45, 15 40, 10 20, 35 10), (20 30, 35 35, 30 20, 20 30))");
+}
+
+TEST(GeoArrowGEOSTest, TestArrayBuilderRoundtripCollectionWKT) {
+  TestBuilderRoundtripWKT("MULTIPOINT EMPTY");
+  TestBuilderRoundtripWKT("MULTIPOINT (30 10)");
+  TestBuilderRoundtripWKT("MULTIPOINT (30 10, 40 30, 20 20)");
 }
