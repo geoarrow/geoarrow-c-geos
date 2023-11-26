@@ -124,6 +124,7 @@ static GeoArrowErrorCode GeoArrowGEOSArrayBuilderEnsureCoords(
     }
   }
 
+  builder->coords_view.n_coords = n_coords;
   builder->coords_view.n_values = n_dims;
   builder->coords_view.coords_stride = n_dims;
   for (int i = 0; i < n_dims; i++) {
@@ -160,7 +161,16 @@ const char* GeoArrowGEOSArrayBuilderGetLastError(
 
 GeoArrowGEOSErrorCode GeoArrowGEOSArrayBuilderFinish(
     struct GeoArrowGEOSArrayBuilder* builder, struct ArrowArray* out) {
-  return GeoArrowBuilderFinish(&builder->builder, out, &builder->error);
+  if (builder->wkt_writer.private_data != NULL) {
+    return GeoArrowWKTWriterFinish(&builder->wkt_writer, out, &builder->error);
+  } else if (builder->wkb_writer.private_data != NULL) {
+    return GeoArrowWKBWriterFinish(&builder->wkb_writer, out, &builder->error);
+  } else if (builder->builder.private_data != NULL) {
+    return GeoArrowBuilderFinish(&builder->builder, out, &builder->error);
+  } else {
+    GeoArrowErrorSet(&builder->error, "Invalid state");
+    return EINVAL;
+  }
 }
 
 static GeoArrowErrorCode VisitCoords(struct GeoArrowGEOSArrayBuilder* builder,
@@ -344,7 +354,7 @@ GeoArrowGEOSErrorCode GeoArrowGEOSArrayBuilderAppend(
   for (size_t i = 0; i < geom_size; i++) {
     GEOARROW_RETURN_NOT_OK(builder->v.feat_start(&builder->v));
     GEOARROW_RETURN_NOT_OK(VisitGeometry(builder, geom[i], &builder->v));
-    GEOARROW_RETURN_NOT_OK(builder->v.feat_start(&builder->v));
+    GEOARROW_RETURN_NOT_OK(builder->v.feat_end(&builder->v));
     *n_appended = i + 1;
   }
 

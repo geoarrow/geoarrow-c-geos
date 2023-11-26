@@ -1,0 +1,10 @@
+{
+    "files.associations": {
+        "**/frontmatter.json": "jsonc",
+        "**/.frontmatter/config/*.json": "jsonc",
+        "__mutex_base": "cpp",
+        "semaphore": "cpp",
+        "memory": "cpp",
+        "stop_token": "cpp"
+    }
+}
