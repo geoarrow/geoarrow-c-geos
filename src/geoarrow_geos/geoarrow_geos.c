@@ -332,7 +332,7 @@ static GeoArrowErrorCode VisitGeometry(struct GeoArrowGEOSArrayBuilder* builder,
     case GEOS_GEOMETRYCOLLECTION: {
       int size = GEOSGetNumGeometries_r(builder->handle, geom);
       for (int i = 0; i < size; i++) {
-        const GEOSGeometry* child = GEOSGetGeometryN_r(builder->handle, child, i);
+        const GEOSGeometry* child = GEOSGetGeometryN_r(builder->handle, geom, i);
         if (child == NULL) {
           GeoArrowErrorSet(v->error, "GEOSGetGeometryN_r() failed");
           return ENOMEM;
@@ -340,6 +340,8 @@ static GeoArrowErrorCode VisitGeometry(struct GeoArrowGEOSArrayBuilder* builder,
 
         GEOARROW_RETURN_NOT_OK(VisitGeometry(builder, child, v));
       }
+
+      break;
     }
     default:
       GeoArrowErrorSet(v->error, "Unexpected GEOSGeomTypeId: %d", type_id);

@@ -36,9 +36,9 @@ endif()
 # Ensure geoarrow_c
 FetchContent_Declare(
   geoarrow_c
-  URL https://github.com/geoarrow/geoarrow-c/archive/f7c3aa5986d90f9f660f8a99750b9c2e576d9532.zip
+  URL https://github.com/geoarrow/geoarrow-c/archive/7ae1089e3ac29c517ba2a8687f7b983661001170.zip
   URL_HASH
-    SHA256=7d08c3ab7256855bde0e75f034e2c7973d2feff31266b3dd9c43bfdea219ae28)
+    SHA256=56c94522ade308362b1365df4d89b11990a553f3edd4917f8bc90a326ee1c77a)
 
 FetchContent_MakeAvailable(geoarrow_c)
 
@@ -78,6 +78,14 @@ if(GEOARROW_GEOS_BUILD_TESTS)
 
   FetchContent_MakeAvailable(googletest)
 
+  FetchContent_Declare(
+    nanoarrow
+    URL https://github.com/apache/arrow-nanoarrow/archive/refs/tags/apache-arrow-nanoarrow-0.3.0.zip
+    URL_HASH
+      SHA256=ea7b946fd4604c6da7df80142636ddd686a0b31b29a2fc8ac2629bfc23ccf9c2)
+
+  FetchContent_MakeAvailable(nanoarrow)
+
   enable_testing()
 
   add_executable(geoarrow_geos_test src/geoarrow_geos/geoarrow_geos_test.cc)
@@ -89,7 +97,7 @@ if(GEOARROW_GEOS_BUILD_TESTS)
     target_link_libraries(geoarrow_geos geoarrow_geos_coverage_config)
   endif()
 
-  target_link_libraries(geoarrow_geos_test geoarrow_geos gtest_main)
+  target_link_libraries(geoarrow_geos_test geoarrow_geos nanoarrow gtest_main)
 
   include(GoogleTest)
   gtest_discover_tests(geoarrow_geos_test)
