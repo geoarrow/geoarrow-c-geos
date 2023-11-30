@@ -93,6 +93,20 @@ GeoArrowGEOSErrorCode GeoArrowGEOSArrayBuilderAppend(
 GeoArrowGEOSErrorCode GeoArrowGEOSArrayBuilderFinish(
     struct GeoArrowGEOSArrayBuilder* builder, struct ArrowArray* out);
 
+struct GeoArrowGEOSArrayReader;
+
+GeoArrowGEOSErrorCode GeoArrowGEOSArrayReaderCreate(GEOSContextHandle_t handle,
+                                                    struct ArrowSchema* schema,
+                                                    struct GeoArrowGEOSArrayReader** out);
+
+const char* GeoArrowGEOSArrayReaderGetLastError(struct GeoArrowGEOSArrayReader* reader);
+
+GeoArrowGEOSErrorCode GeoArrowGEOSArrayReaderRead(struct GeoArrowGEOSArrayReader* reader,
+                                                  struct ArrowArray* array, size_t offset,
+                                                  size_t length, GEOSGeometry* out);
+
+void GeoArrowGEOSArrayReaderDestroy(struct GeoArrowGEOSArrayReader* reader);
+
 #ifdef __cplusplus
 }
 #endif

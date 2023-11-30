@@ -353,3 +353,52 @@ GeoArrowGEOSErrorCode GeoArrowGEOSArrayBuilderAppend(
 
   return GEOARROW_OK;
 }
+
+struct GeoArrowGEOSArrayReader {
+  GEOSContextHandle_t handle;
+  struct GeoArrowArrayView array_view;
+  struct GeoArrowError error;
+};
+
+GeoArrowGEOSErrorCode GeoArrowGEOSArrayReaderCreate(
+    GEOSContextHandle_t handle, struct ArrowSchema* schema,
+    struct GeoArrowGEOSArrayReader** out) {
+  struct GeoArrowGEOSArrayReader* reader =
+      (struct GeoArrowGEOSArrayReader*)malloc(sizeof(struct GeoArrowGEOSArrayReader));
+  if (reader == NULL) {
+    *out = NULL;
+    return ENOMEM;
+  }
+
+  memset(reader, 0, sizeof(struct GeoArrowGEOSArrayReader));
+  *out = reader;
+
+  reader->handle = handle;
+  GEOARROW_RETURN_NOT_OK(
+      GeoArrowArrayViewInitFromSchema(&reader->array_view, schema, &reader->error));
+
+  return GEOARROW_OK;
+}
+
+const char* GeoArrowGEOSArrayReaderGetLastError(struct GeoArrowGEOSArrayReader* reader) {
+  return reader->error.message;
+}
+
+GeoArrowGEOSErrorCode GeoArrowGEOSArrayReaderRead(struct GeoArrowGEOSArrayReader* reader,
+                                                  struct ArrowArray* array, size_t offset,
+                                                  size_t length, GEOSGeometry* out) {
+  GEOARROW_RETURN_NOT_OK(
+      GeoArrowArrayViewSetArray(&reader->array_view, array, &reader->error));
+
+  switch (reader->array_view.schema_view.type) {
+    default:
+      GeoArrowErrorSet(&reader->error,
+                       "GeoArrowGEOSArrayReaderRead not implemented for this array type");
+  }
+
+  return GEOARROW_OK;
+}
+
+void GeoArrowGEOSArrayReaderDestroy(struct GeoArrowGEOSArrayReader* reader) {
+  free(reader);
+}
