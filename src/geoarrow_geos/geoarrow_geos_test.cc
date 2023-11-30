@@ -95,7 +95,7 @@ void TestBuilderRoundtripWKT(const std::string& wkt) {
   ASSERT_EQ(GeoArrowGEOSArrayBuilderAppend(builder.ptr, &geom_const, 1, &n),
             GEOARROW_GEOS_OK)
       << "WKT: " << wkt
-      << " Error: " << GeoArrowGEOSArrayBuilderGetLastError(builder.ptr);
+      << "\n Error: " << GeoArrowGEOSArrayBuilderGetLastError(builder.ptr);
   ASSERT_EQ(n, 1);
 
   nanoarrow::UniqueArray array;
@@ -111,24 +111,28 @@ void TestBuilderRoundtripWKT(const std::string& wkt) {
   EXPECT_EQ(wkt_out, wkt);
 }
 
-TEST(GeoArrowGEOSTest, TestArrayBuilderRoundtripWKT) {
+TEST(GeoArrowGEOSTest, TestArrayBuilderRoundtripWKTPoint) {
   TestBuilderRoundtripWKT("POINT EMPTY");
   TestBuilderRoundtripWKT("POINT (0 1)");
   TestBuilderRoundtripWKT("POINT Z EMPTY");
   TestBuilderRoundtripWKT("POINT Z (0 1 2)");
+}
 
+TEST(GeoArrowGEOSTest, TestArrayBuilderRoundtripWKTLinestring) {
   TestBuilderRoundtripWKT("LINESTRING EMPTY");
   TestBuilderRoundtripWKT("LINESTRING (0 1, 2 3)");
   TestBuilderRoundtripWKT("LINESTRING Z EMPTY");
   TestBuilderRoundtripWKT("LINESTRING Z (0 1 2, 3 4 5)");
+}
 
+TEST(GeoArrowGEOSTest, TestArrayBuilderRoundtripWKTPolygon) {
   TestBuilderRoundtripWKT("POLYGON EMPTY");
   TestBuilderRoundtripWKT("POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))");
   TestBuilderRoundtripWKT(
       "POLYGON ((35 10, 45 45, 15 40, 10 20, 35 10), (20 30, 35 35, 30 20, 20 30))");
 }
 
-TEST(GeoArrowGEOSTest, TestArrayBuilderRoundtripCollectionWKT) {
+TEST(GeoArrowGEOSTest, TestArrayBuilderRoundtripWKTCollection) {
   TestBuilderRoundtripWKT("MULTIPOINT EMPTY");
   TestBuilderRoundtripWKT("MULTIPOINT (30 10)");
   TestBuilderRoundtripWKT("MULTIPOINT (30 10, 40 30, 20 20)");

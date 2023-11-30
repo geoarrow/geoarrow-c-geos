@@ -36,9 +36,9 @@ endif()
 # Ensure geoarrow_c
 FetchContent_Declare(
   geoarrow_c
-  URL https://github.com/geoarrow/geoarrow-c/archive/7ae1089e3ac29c517ba2a8687f7b983661001170.zip
+  URL https://github.com/geoarrow/geoarrow-c/archive/898af28230cf11c4804dae64090993c8c3173bd9.zip
   URL_HASH
-    SHA256=56c94522ade308362b1365df4d89b11990a553f3edd4917f8bc90a326ee1c77a)
+    SHA256=bbac8132f64a59db88983347a0337e8a37a8d50f35af248075edc59ce934547b)
 
 FetchContent_MakeAvailable(geoarrow_c)
 

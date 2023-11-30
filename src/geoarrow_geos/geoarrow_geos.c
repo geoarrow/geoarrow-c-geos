@@ -10,19 +10,6 @@
 
 #include "geoarrow_geos.h"
 
-// These should really be in the geoarrow header
-#define _GEOARROW_CONCAT(x, y) x##y
-#define _GEOARROW_MAKE_NAME(x, y) _GEOARROW_CONCAT(x, y)
-
-#define _GEOARROW_RETURN_NOT_OK_IMPL(NAME, EXPR) \
-  do {                                           \
-    const int NAME = (EXPR);                     \
-    if (NAME) return NAME;                       \
-  } while (0)
-
-#define GEOARROW_RETURN_NOT_OK(EXPR) \
-  _GEOARROW_RETURN_NOT_OK_IMPL(_GEOARROW_MAKE_NAME(errno_status_, __COUNTER__), EXPR)
-
 const char* GeoArrowGEOSVersionGEOS(void) { return GEOSversion(); }
 
 const char* GeoArrowGEOSVersionGeoArrow(void) { return GeoArrowVersion(); }
