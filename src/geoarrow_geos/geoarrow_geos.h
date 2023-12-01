@@ -103,7 +103,7 @@ const char* GeoArrowGEOSArrayReaderGetLastError(struct GeoArrowGEOSArrayReader* 
 
 GeoArrowGEOSErrorCode GeoArrowGEOSArrayReaderRead(struct GeoArrowGEOSArrayReader* reader,
                                                   struct ArrowArray* array, size_t offset,
-                                                  size_t length, GEOSGeometry* out);
+                                                  size_t length, GEOSGeometry** out);
 
 void GeoArrowGEOSArrayReaderDestroy(struct GeoArrowGEOSArrayReader* reader);
 

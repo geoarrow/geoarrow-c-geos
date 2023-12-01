@@ -356,8 +356,13 @@ GeoArrowGEOSErrorCode GeoArrowGEOSArrayBuilderAppend(
 
 struct GeoArrowGEOSArrayReader {
   GEOSContextHandle_t handle;
-  struct GeoArrowArrayView array_view;
   struct GeoArrowError error;
+  struct GeoArrowArrayView array_view;
+  // In order to use GeoArrow's read capability we need to write a visitor-based
+  // constructor for GEOS geometries, which is complicated and may or may not be
+  // faster than GEOS' own readers.
+  GEOSWKTReader* wkt_reader;
+  GEOSWKBReader* wkb_reader;
 };
 
 GeoArrowGEOSErrorCode GeoArrowGEOSArrayReaderCreate(
@@ -384,9 +389,95 @@ const char* GeoArrowGEOSArrayReaderGetLastError(struct GeoArrowGEOSArrayReader* 
   return reader->error.message;
 }
 
+static GeoArrowErrorCode MakeCoordSeq(struct GeoArrowGEOSArrayReader* reader,
+                                      size_t offset, size_t length,
+                                      GEOSCoordSequence** out) {
+  struct GeoArrowCoordView* coords = &reader->array_view.coords;
+  const double* z = NULL;
+  const double* m = NULL;
+
+  switch (reader->array_view.schema_view.dimensions) {
+    case GEOARROW_DIMENSIONS_XYZ:
+      z = coords->values[2];
+      break;
+    case GEOARROW_DIMENSIONS_XYM:
+      m = coords->values[2];
+      break;
+    case GEOARROW_DIMENSIONS_XYZM:
+      z = coords->values[2];
+      m = coords->values[3];
+      break;
+    default:
+      break;
+  }
+
+  GEOSCoordSequence* seq;
+
+  switch (reader->array_view.schema_view.coord_type) {
+    case GEOARROW_COORD_TYPE_SEPARATE:
+      seq = GEOSCoordSeq_copyFromArrays_r(reader->handle, coords->values[0] + offset,
+                                          coords->values[1] + offset, z, m, length);
+      break;
+    case GEOARROW_COORD_TYPE_INTERLEAVED:
+      seq = GEOSCoordSeq_copyFromBuffer_r(reader->handle,
+                                          coords->values[0] + (offset * coords->n_values),
+                                          length, z != NULL, m != NULL);
+      break;
+    default:
+      GeoArrowErrorSet(&reader->error, "Unsupported coord type");
+      return ENOTSUP;
+  }
+
+  if (seq == NULL) {
+    GeoArrowErrorSet(&reader->error, "GEOSCoordSeq_copyFromArrays_r() failed");
+    return ENOMEM;
+  }
+
+  *out = seq;
+  return GEOARROW_OK;
+}
+
+static GeoArrowErrorCode MakePoints(struct GeoArrowGEOSArrayReader* reader, size_t offset,
+                                    size_t length, GEOSGeometry** out) {
+  struct GeoArrowCoordView* coords = &reader->array_view.coords;
+  offset += reader->array_view.offset[0];
+
+  switch (reader->array_view.schema_view.dimensions) {
+    case GEOARROW_DIMENSIONS_XY:
+      for (size_t i = 0; i < length; i++) {
+        out[i] = GEOSGeom_createPointFromXY_r(
+            reader->handle, GEOARROW_COORD_VIEW_VALUE(coords, offset + i, 0),
+            GEOARROW_COORD_VIEW_VALUE(coords, offset + i, 1));
+        if (out[i] == NULL) {
+          GeoArrowErrorSet(&reader->error, "[%ld] GEOSGeom_createPointFromXY_r() failed",
+                           (long)i);
+          return ENOMEM;
+        }
+      }
+      break;
+    // Coordinate sequence seems to handle the x/y/z/m bookkeeping
+    default: {
+      GEOSCoordSequence* seq = NULL;
+      for (size_t i = 0; i < length; i++) {
+        GEOARROW_RETURN_NOT_OK(MakeCoordSeq(reader, offset + i, 1, &seq));
+        out[i] = GEOSGeom_createPoint_r(reader->handle, seq);
+        if (out[i] == NULL) {
+          GEOSCoordSeq_destroy_r(reader->handle, seq);
+          GeoArrowErrorSet(&reader->error, "[%ld] GEOSGeom_createPoint_r() failed",
+                           (long)i);
+          return ENOMEM;
+        }
+      }
+      break;
+    }
+  }
+
+  return GEOARROW_OK;
+}
+
 GeoArrowGEOSErrorCode GeoArrowGEOSArrayReaderRead(struct GeoArrowGEOSArrayReader* reader,
                                                   struct ArrowArray* array, size_t offset,
-                                                  size_t length, GEOSGeometry* out) {
+                                                  size_t length, GEOSGeometry** out) {
   GEOARROW_RETURN_NOT_OK(
       GeoArrowArrayViewSetArray(&reader->array_view, array, &reader->error));
 
@@ -400,5 +491,13 @@ GeoArrowGEOSErrorCode GeoArrowGEOSArrayReaderRead(struct GeoArrowGEOSArrayReader
 }
 
 void GeoArrowGEOSArrayReaderDestroy(struct GeoArrowGEOSArrayReader* reader) {
+  if (reader->wkt_reader != NULL) {
+    GEOSWKTReader_destroy_r(reader->handle, reader->wkt_reader);
+  }
+
+  if (reader->wkb_reader != NULL) {
+    GEOSWKBReader_destroy_r(reader->handle, reader->wkb_reader);
+  }
+
   free(reader);
 }
