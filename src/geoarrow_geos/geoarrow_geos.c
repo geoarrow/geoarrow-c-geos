@@ -484,13 +484,33 @@ GeoArrowGEOSErrorCode GeoArrowGEOSArrayReaderRead(struct GeoArrowGEOSArrayReader
   GEOARROW_RETURN_NOT_OK(
       GeoArrowArrayViewSetArray(&reader->array_view, array, &reader->error));
 
-  switch (reader->array_view.schema_view.type) {
+  memset(out, 0, sizeof(GEOSGeometry*) * length);
+
+  GeoArrowErrorCode result;
+  switch (reader->array_view.schema_view.geometry_type) {
+    case GEOARROW_GEOMETRY_TYPE_POINT:
+      result = MakePoints(reader, offset, length, out);
+      break;
+    case GEOARROW_GEOMETRY_TYPE_LINESTRING:
+      result = MakeLinestrings(reader, offset, length, out);
+      break;
     default:
       GeoArrowErrorSet(&reader->error,
-                       "GeoArrowGEOSArrayReaderRead not implemented for this array type");
+                       "GeoArrowGEOSArrayReaderRead not implemented for geometry type");
+      return ENOTSUP;
   }
 
-  return GEOARROW_OK;
+  // If we failed, clean up any allocated geometries
+  if (result != GEOARROW_OK) {
+    for (size_t i = 0; i < length; i++) {
+      if (out[i] != NULL) {
+        GEOSGeom_destroy_r(reader->handle, out[i]);
+        out[i] = NULL;
+      }
+    }
+  }
+
+  return result;
 }
 
 void GeoArrowGEOSArrayReaderDestroy(struct GeoArrowGEOSArrayReader* reader) {
