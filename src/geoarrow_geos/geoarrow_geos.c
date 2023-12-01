@@ -392,6 +392,7 @@ const char* GeoArrowGEOSArrayReaderGetLastError(struct GeoArrowGEOSArrayReader* 
 static GeoArrowErrorCode MakeCoordSeq(struct GeoArrowGEOSArrayReader* reader,
                                       size_t offset, size_t length,
                                       GEOSCoordSequence** out) {
+  offset += reader->array_view.offset[reader->array_view.n_offsets];
   struct GeoArrowCoordView* coords = &reader->array_view.coords;
   const double* z = NULL;
   const double* m = NULL;
@@ -439,36 +440,38 @@ static GeoArrowErrorCode MakeCoordSeq(struct GeoArrowGEOSArrayReader* reader,
 
 static GeoArrowErrorCode MakePoints(struct GeoArrowGEOSArrayReader* reader, size_t offset,
                                     size_t length, GEOSGeometry** out) {
-  struct GeoArrowCoordView* coords = &reader->array_view.coords;
-  offset += reader->array_view.offset[0];
+  GEOSCoordSequence* seq = NULL;
+  for (size_t i = 0; i < length; i++) {
+    GEOARROW_RETURN_NOT_OK(MakeCoordSeq(reader, offset + i, 1, &seq));
+    out[i] = GEOSGeom_createPoint_r(reader->handle, seq);
+    if (out[i] == NULL) {
+      GEOSCoordSeq_destroy_r(reader->handle, seq);
+      GeoArrowErrorSet(&reader->error, "[%ld] GEOSGeom_createPoint_r() failed", (long)i);
+      return ENOMEM;
+    }
+  }
 
-  switch (reader->array_view.schema_view.dimensions) {
-    case GEOARROW_DIMENSIONS_XY:
-      for (size_t i = 0; i < length; i++) {
-        out[i] = GEOSGeom_createPointFromXY_r(
-            reader->handle, GEOARROW_COORD_VIEW_VALUE(coords, offset + i, 0),
-            GEOARROW_COORD_VIEW_VALUE(coords, offset + i, 1));
-        if (out[i] == NULL) {
-          GeoArrowErrorSet(&reader->error, "[%ld] GEOSGeom_createPointFromXY_r() failed",
-                           (long)i);
-          return ENOMEM;
-        }
-      }
-      break;
-    // Coordinate sequence seems to handle the x/y/z/m bookkeeping
-    default: {
-      GEOSCoordSequence* seq = NULL;
-      for (size_t i = 0; i < length; i++) {
-        GEOARROW_RETURN_NOT_OK(MakeCoordSeq(reader, offset + i, 1, &seq));
-        out[i] = GEOSGeom_createPoint_r(reader->handle, seq);
-        if (out[i] == NULL) {
-          GEOSCoordSeq_destroy_r(reader->handle, seq);
-          GeoArrowErrorSet(&reader->error, "[%ld] GEOSGeom_createPoint_r() failed",
-                           (long)i);
-          return ENOMEM;
-        }
-      }
-      break;
+  return GEOARROW_OK;
+}
+
+static GeoArrowErrorCode MakeLinestrings(struct GeoArrowGEOSArrayReader* reader,
+                                         size_t offset, size_t length,
+                                         GEOSGeometry** out) {
+  offset += reader->array_view.offset[reader->array_view.n_offsets - 1];
+  const int32_t* coord_offsets =
+      reader->array_view.offsets[reader->array_view.n_offsets - 1];
+
+  GEOSCoordSequence* seq = NULL;
+  for (size_t i = 0; i < length; i++) {
+    GEOARROW_RETURN_NOT_OK(
+        MakeCoordSeq(reader, coord_offsets[offset + i],
+                     coord_offsets[offset + i + 1] - coord_offsets[offset + i], &seq));
+    out[i] = GEOSGeom_createLineString_r(reader->handle, seq);
+    if (out[i] == NULL) {
+      GEOSCoordSeq_destroy_r(reader->handle, seq);
+      GeoArrowErrorSet(&reader->error, "[%ld] GEOSGeom_createLineString_r() failed",
+                       (long)i);
+      return ENOMEM;
     }
   }
 
