@@ -23,7 +23,7 @@ class GEOSCppGeometry {
 
   ~GEOSCppGeometry() {
     if (ptr != nullptr) {
-      // GEOSGeom_destroy_r(handle, ptr);
+      GEOSGeom_destroy_r(handle, ptr);
     }
   }
 };
