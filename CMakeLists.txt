@@ -55,6 +55,8 @@ install(
   PATTERN "*.h")
 
 if(GEOARROW_GEOS_BUILD_TESTS)
+  set(MEMORYCHECK_COMMAND_OPTIONS "--leak-check=full --error-exitcode=1")
+
   include(CTest)
 
   if(NOT DEFINED CMAKE_CXX_STANDARD)
