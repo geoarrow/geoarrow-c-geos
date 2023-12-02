@@ -73,6 +73,24 @@ class GeoArrowGEOSCppArrayBuilder {
   }
 };
 
+class GeoArrowGEOSCppArrayReader {
+ public:
+  GeoArrowGEOSArrayReader* ptr;
+  GEOSContextHandle_t handle;
+
+  GeoArrowGEOSCppArrayReader(GEOSContextHandle_t handle) : ptr(nullptr), handle(handle) {}
+
+  GeoArrowGEOSErrorCode Init(ArrowSchema* schema) {
+    return GeoArrowGEOSArrayReaderCreate(handle, schema, &ptr);
+  }
+
+  ~GeoArrowGEOSCppArrayReader() {
+    if (ptr != nullptr) {
+      GeoArrowGEOSArrayReaderDestroy(ptr);
+    }
+  }
+};
+
 TEST(GeoArrowGEOSTest, TestVersions) {
   ASSERT_EQ(std::string(GeoArrowGEOSVersionGEOS()).substr(0, 1), "3");
   ASSERT_STREQ(GeoArrowGEOSVersionGeoArrow(), "0.2.0-SNAPSHOT");
@@ -136,4 +154,57 @@ TEST(GeoArrowGEOSTest, TestArrayBuilderRoundtripWKTCollection) {
   TestBuilderRoundtripWKT("MULTIPOINT EMPTY");
   TestBuilderRoundtripWKT("MULTIPOINT (30 10)");
   TestBuilderRoundtripWKT("MULTIPOINT (30 10, 40 30, 20 20)");
+}
+
+void TestReaderRoundtripWKT(const std::string& wkt, int wkb_type) {
+  GEOSCppHandle handle;
+  GeoArrowGEOSCppArrayBuilder builder(handle.handle);
+  GeoArrowGEOSCppArrayReader reader(handle.handle);
+
+  // Initialize builder + build a target array
+  nanoarrow::UniqueSchema schema;
+  ASSERT_EQ(
+      GeoArrowGEOSMakeSchema(GEOARROW_GEOS_ENCODING_GEOARROW, wkb_type, schema.get()),
+      GEOARROW_GEOS_OK);
+  ASSERT_EQ(builder.Init(schema.get()), GEOARROW_GEOS_OK);
+
+  GEOSCppWKTReader wkt_reader(handle.handle);
+  GEOSCppGeometry geom(handle.handle);
+  ASSERT_EQ(wkt_reader.Read(wkt, &geom.ptr), GEOARROW_GEOS_OK);
+
+  size_t n = 0;
+  const GEOSGeometry* geom_const = geom.ptr;
+  ASSERT_EQ(GeoArrowGEOSArrayBuilderAppend(builder.ptr, &geom_const, 1, &n),
+            GEOARROW_GEOS_OK);
+
+  nanoarrow::UniqueArray array;
+  ASSERT_EQ(GeoArrowGEOSArrayBuilderFinish(builder.ptr, array.get()), GEOARROW_GEOS_OK);
+
+  // Read it back!
+  ASSERT_EQ(reader.Init(schema.get()), GEOARROW_GEOS_OK);
+
+  GEOSCppGeometry geom_out(handle.handle);
+  ASSERT_EQ(GeoArrowGEOSArrayReaderRead(reader.ptr, array.get(), 0, 1, &geom_out.ptr),
+            GEOARROW_GEOS_OK)
+      << "WKT: " << wkt
+      << "\n Error: " << GeoArrowGEOSArrayReaderGetLastError(reader.ptr);
+
+  // Check for GEOS equality
+  EXPECT_EQ(GEOSEqualsIdentical_r(handle.handle, geom_out.ptr, geom.ptr), 1)
+      << "WKT: " << wkt
+      << "\n Error: " << GeoArrowGEOSArrayReaderGetLastError(reader.ptr);
+}
+
+TEST(GeoArrowGEOSTest, TestArrayReaderPoint) {
+  TestReaderRoundtripWKT("POINT EMPTY", 1);
+  TestReaderRoundtripWKT("POINT (0 1)", 1);
+  TestReaderRoundtripWKT("POINT Z EMPTY", 1001);
+  TestReaderRoundtripWKT("POINT Z (0 1 2)", 1001);
+}
+
+TEST(GeoArrowGEOSTest, TestArrayReaderLinestring) {
+  TestReaderRoundtripWKT("LINESTRING EMPTY", 2);
+  TestReaderRoundtripWKT("LINESTRING (0 1, 2 3)", 2);
+  // LINESTRING Z EMPTY doesn't seem to roundtrip through GEOSGeometry
+  TestReaderRoundtripWKT("LINESTRING Z (0 1 2, 3 4 5)", 1002);
 }
