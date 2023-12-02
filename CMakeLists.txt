@@ -23,15 +23,6 @@ set(GEOARROW_GEOS_VERSION_MINOR "${GEOARROW_GEOS_VERSION_MINOR}")
 set(GEOARROW_GEOS_VERSION_PATCH "${GEOARROW_GEOS_VERSION_PATCH}")
 
 option(GEOARROW_GEOS_BUILD_TESTS "Build tests" OFF)
-option(GEOARROW_GEOS_CODE_COVERAGE "Enable coverage reporting" OFF)
-
-add_library(geoarrow_geos_coverage_config INTERFACE)
-
-if(GEOARROW_GEOS_CODE_COVERAGE)
-  target_compile_options(geoarrow_geos_coverage_config INTERFACE -O0 -g
-                                                                 --coverage)
-  target_link_options(geoarrow_geos_coverage_config INTERFACE --coverage)
-endif()
 
 # Ensure geoarrow_c
 FetchContent_Declare(
@@ -89,10 +80,6 @@ if(GEOARROW_GEOS_BUILD_TESTS)
   enable_testing()
 
   add_executable(geoarrow_geos_test src/geoarrow_geos/geoarrow_geos_test.cc)
-
-  if(GEOARROW_CODE_COVERAGE)
-    target_link_libraries(geoarrow_geos geoarrow_geos_coverage_config)
-  endif()
 
   target_link_libraries(geoarrow_geos_test geoarrow_geos nanoarrow gtest_main)
 

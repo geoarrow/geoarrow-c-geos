@@ -32,31 +32,13 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Debug -DGEOARROW_GEOS_CODE_COVERAGE=ON -DGEOARROW_GEOS_BUILD_TESTS=ON
+          cmake .. -DCMAKE_BUILD_TYPE=Debug -DGEOARROW_GEOS_BUILD_TESTS=ON
           cmake --build .
 
       - name: Test
         run: |
           cd build
-          GEOARROW_TESTING_DIR=$GITHUB_WORKSPACE/testing ctest -T test --output-on-failure .
-
-      - name: Calculate coverage
-        run: |
-          cd build
-          lcov --capture --directory . \
-            --exclude "*_test.cc" \
-            --exclude "/usr/*" \
-            --exclude "*/gtest/*" \
-            --exclude "*/nanoarrow.*" \
-            --output-file coverage.info
-
-          lcov --list coverage.info
-
-      # - name: Upload coverage
-      #   if: success()
-      #   uses: codecov/codecov-action@v2
-      #   with:
-      #     files: build/coverage.info
+          ctest -T test --output-on-failure .
 
       - name: Test with memcheck
         run: |
