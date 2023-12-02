@@ -190,7 +190,7 @@ void TestReaderRoundtripWKT(const std::string& wkt, int wkb_type) {
       << "\n Error: " << GeoArrowGEOSArrayReaderGetLastError(reader.ptr);
 
   // Check for GEOS equality
-  EXPECT_EQ(GEOSEqualsIdentical_r(handle.handle, geom_out.ptr, geom.ptr), 1)
+  EXPECT_EQ(GEOSEqualsExact_r(handle.handle, geom_out.ptr, geom.ptr, 0), 1)
       << "WKT: " << wkt
       << "\n Error: " << GeoArrowGEOSArrayReaderGetLastError(reader.ptr);
 }
