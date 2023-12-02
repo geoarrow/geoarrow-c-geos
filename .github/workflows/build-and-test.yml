@@ -26,7 +26,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt install -y cmake valgrind
+          sudo apt install -y cmake valgrind lcov libgeos-dev
 
       - name: Build
         run: |
@@ -39,10 +39,6 @@ jobs:
         run: |
           cd build
           GEOARROW_TESTING_DIR=$GITHUB_WORKSPACE/testing ctest -T test --output-on-failure .
-
-      - name: Install lcov
-        run: |
-          sudo apt-get install lcov
 
       - name: Calculate coverage
         run: |
