@@ -208,3 +208,21 @@ TEST(GeoArrowGEOSTest, TestArrayReaderLinestring) {
   // LINESTRING Z EMPTY doesn't seem to roundtrip through GEOSGeometry
   TestReaderRoundtripWKT("LINESTRING Z (0 1 2, 3 4 5)", 1002);
 }
+
+TEST(GeoArrowGEOSTest, TestArrayReaderPolygon) {
+  TestReaderRoundtripWKT("POLYGON EMPTY", 3);
+  TestReaderRoundtripWKT("POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))", 3);
+  TestReaderRoundtripWKT(
+      "POLYGON ((35 10, 45 45, 15 40, 10 20, 35 10), (20 30, 35 35, 30 20, 20 30))", 3);
+  TestReaderRoundtripWKT("POLYGON Z EMPTY", 1003);
+  TestReaderRoundtripWKT("POLYGON Z ((30 10 40, 40 40 80, 20 40 60, 10 20 30, 30 10 40))",
+                         1003);
+  TestReaderRoundtripWKT(
+      "POLYGON Z ((35 10 45, 45 45 90, 15 40 55, 10 20 30, 35 10 45), (20 30 50, 35 35 "
+      "70, 30 20 50, 20 30 50))",
+      1003);
+  TestReaderRoundtripWKT(
+      "POLYGON Z ((35 10 45, 45 45 90, 15 40 55, 10 20 30, 35 10 45), (20 30 50, 35 35 "
+      "70, 30 20 50, 20 30 50))",
+      1003);
+}

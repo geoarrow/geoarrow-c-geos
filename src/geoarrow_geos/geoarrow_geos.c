@@ -363,7 +363,40 @@ struct GeoArrowGEOSArrayReader {
   // faster than GEOS' own readers.
   GEOSWKTReader* wkt_reader;
   GEOSWKBReader* wkb_reader;
+  // In-progress items that we might need to clean up if an error was returned
+  int64_t n_geoms;
+  GEOSGeometry** geoms;
 };
+
+static GeoArrowErrorCode GeoArrowGEOSArrayReaderEnsureScratch(
+    struct GeoArrowGEOSArrayReader* reader, int64_t n_geoms) {
+  if (n_geoms <= reader->n_geoms) {
+    return GEOARROW_OK;
+  }
+
+  if ((reader->n_geoms * 2) > n_geoms) {
+    n_geoms = reader->n_geoms * 2;
+  }
+
+  reader->geoms = (GEOSGeometry**)realloc(reader->geoms, n_geoms * sizeof(GEOSGeometry*));
+  if (reader->geoms == NULL) {
+    reader->n_geoms = 0;
+    return ENOMEM;
+  }
+
+  memset(reader->geoms, 0, n_geoms * sizeof(GEOSGeometry*));
+  return GEOARROW_OK;
+}
+
+static void GeoArrowGEOSArrayReaderResetScratch(struct GeoArrowGEOSArrayReader* reader,
+                                                int64_t n) {
+  for (int64_t i = 0; i < n; i++) {
+    if (reader->geoms[i] != NULL) {
+      GEOSGeom_destroy_r(reader->handle, reader->geoms[i]);
+      reader->geoms[i] = NULL;
+    }
+  }
+}
 
 GeoArrowGEOSErrorCode GeoArrowGEOSArrayReaderCreate(
     GEOSContextHandle_t handle, struct ArrowSchema* schema,
@@ -478,9 +511,66 @@ static GeoArrowErrorCode MakeLinestrings(struct GeoArrowGEOSArrayReader* reader,
   return GEOARROW_OK;
 }
 
+static GeoArrowErrorCode MakeLinearrings(struct GeoArrowGEOSArrayReader* reader,
+                                         size_t offset, size_t length,
+                                         GEOSGeometry** out) {
+  offset += reader->array_view.offset[reader->array_view.n_offsets - 1];
+  const int32_t* coord_offsets =
+      reader->array_view.offsets[reader->array_view.n_offsets - 1];
+
+  GEOSCoordSequence* seq = NULL;
+  for (size_t i = 0; i < length; i++) {
+    GEOARROW_RETURN_NOT_OK(
+        MakeCoordSeq(reader, coord_offsets[offset + i],
+                     coord_offsets[offset + i + 1] - coord_offsets[offset + i], &seq));
+    out[i] = GEOSGeom_createLinearRing_r(reader->handle, seq);
+    if (out[i] == NULL) {
+      GEOSCoordSeq_destroy_r(reader->handle, seq);
+      GeoArrowErrorSet(&reader->error, "[%ld] GEOSGeom_createLinearRing_r() failed",
+                       (long)i);
+      return ENOMEM;
+    }
+  }
+
+  return GEOARROW_OK;
+}
+
+static GeoArrowErrorCode MakePolygons(struct GeoArrowGEOSArrayReader* reader,
+                                      size_t offset, size_t length, GEOSGeometry** out) {
+  offset += reader->array_view.offset[reader->array_view.n_offsets - 1];
+  const int32_t* ring_offsets =
+      reader->array_view.offsets[reader->array_view.n_offsets - 2];
+
+  for (size_t i = 0; i < length; i++) {
+    int64_t ring_offset = ring_offsets[offset + i];
+    int64_t n_rings = ring_offsets[offset + i + 1] - ring_offset;
+
+    if (n_rings == 0) {
+      out[i] = GEOSGeom_createEmptyPolygon_r(reader->handle);
+    } else {
+      GEOARROW_RETURN_NOT_OK(GeoArrowGEOSArrayReaderEnsureScratch(reader, n_rings));
+      GEOARROW_RETURN_NOT_OK(
+          MakeLinearrings(reader, ring_offset, n_rings, reader->geoms));
+      out[i] = GEOSGeom_createPolygon_r(reader->handle, reader->geoms[0],
+                                        reader->geoms + 1, n_rings - 1);
+      memset(reader->geoms, 0, n_rings * sizeof(GEOSGeometry*));
+    }
+
+    if (out[i] == NULL) {
+      GeoArrowErrorSet(&reader->error, "[%ld] GEOSGeom_createPolygon_r() failed",
+                       (long)i);
+      return ENOMEM;
+    }
+  }
+
+  return GEOARROW_OK;
+}
+
 GeoArrowGEOSErrorCode GeoArrowGEOSArrayReaderRead(struct GeoArrowGEOSArrayReader* reader,
                                                   struct ArrowArray* array, size_t offset,
                                                   size_t length, GEOSGeometry** out) {
+  GeoArrowGEOSArrayReaderResetScratch(reader, reader->n_geoms);
+
   GEOARROW_RETURN_NOT_OK(
       GeoArrowArrayViewSetArray(&reader->array_view, array, &reader->error));
 
@@ -493,6 +583,9 @@ GeoArrowGEOSErrorCode GeoArrowGEOSArrayReaderRead(struct GeoArrowGEOSArrayReader
       break;
     case GEOARROW_GEOMETRY_TYPE_LINESTRING:
       result = MakeLinestrings(reader, offset, length, out);
+      break;
+    case GEOARROW_GEOMETRY_TYPE_POLYGON:
+      result = MakePolygons(reader, offset, length, out);
       break;
     default:
       GeoArrowErrorSet(&reader->error,
@@ -520,6 +613,11 @@ void GeoArrowGEOSArrayReaderDestroy(struct GeoArrowGEOSArrayReader* reader) {
 
   if (reader->wkb_reader != NULL) {
     GEOSWKBReader_destroy_r(reader->handle, reader->wkb_reader);
+  }
+
+  if (reader->n_geoms > 0) {
+    GeoArrowGEOSArrayReaderResetScratch(reader, reader->n_geoms);
+    free(reader->geoms);
   }
 
   free(reader);
