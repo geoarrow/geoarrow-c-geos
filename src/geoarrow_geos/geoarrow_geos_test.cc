@@ -277,6 +277,8 @@ TEST(GeoArrowGEOSTest, TestArrayReaderPolygon) {
       "70, 30 20 50, 20 30 50))",
       1003);
 
+  TestReaderRoundtripWKTVec({}, 3);
+  TestReaderRoundtripWKTVec({}, 1003);
   TestReaderRoundtripWKTVec(
       {"POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))",
        "POLYGON ((35 10, 45 45, 15 40, 10 20, 35 10), (20 30, 35 35, 30 20, 20 30))",
@@ -296,6 +298,8 @@ TEST(GeoArrowGEOSTest, TestArrayReaderMultipoint) {
   TestReaderRoundtripWKT("MULTIPOINT (10 40, 40 30, 20 20, 30 10)", 4);
   TestReaderRoundtripWKT("MULTIPOINT (30 10)", 4);
 
+  TestReaderRoundtripWKTVec({}, 4);
+  TestReaderRoundtripWKTVec({}, 1004);
   TestReaderRoundtripWKTVec(
       {"MULTIPOINT ((30 10))", "MULTIPOINT ((10 40), (40 30), (20 20), (30 10))",
        "MULTIPOINT ((10 40), (40 30), (20 20), (30 10))"},
@@ -321,6 +325,8 @@ TEST(GeoArrowGEOSTest, TestArrayReaderMultilinestring) {
        "MULTILINESTRING EMPTY"},
       5);
 
+  TestReaderRoundtripWKTVec({}, 5);
+  TestReaderRoundtripWKTVec({}, 1005);
   TestReaderRoundtripWKTVec({"MULTILINESTRING Z ((30 10 40, 10 30 40, 40 40 80))",
                              "MULTILINESTRING Z ((10 10 20, 20 20 40, 10 40 50), (40 40 "
                              "80, 30 30 60, 40 20 60, 30 10 40))",
@@ -338,6 +344,8 @@ TEST(GeoArrowGEOSTest, TestArrayReaderMultipolygon) {
       "20 35), (30 20, 20 15, 20 25, 30 20)))",
       6);
 
+  TestReaderRoundtripWKTVec({}, 6);
+  TestReaderRoundtripWKTVec({}, 1006);
   TestReaderRoundtripWKTVec(
       {"MULTIPOLYGON (((30 10, 40 40, 20 40, 10 20, 30 10)))",
        "MULTIPOLYGON (((30 20, 45 40, 10 40, 30 20)), ((15 5, 40 10, 10 20, 5 10, 15 "
