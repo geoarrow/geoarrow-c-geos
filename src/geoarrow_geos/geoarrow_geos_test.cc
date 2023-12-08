@@ -226,3 +226,27 @@ TEST(GeoArrowGEOSTest, TestArrayReaderPolygon) {
       "70, 30 20 50, 20 30 50))",
       1003);
 }
+
+TEST(GeoArrowGEOSTest, TestArrayReaderMultipoint) {
+  TestReaderRoundtripWKT("MULTIPOINT EMPTY", 4);
+  TestReaderRoundtripWKT("MULTIPOINT (10 40, 40 30, 20 20, 30 10)", 4);
+  TestReaderRoundtripWKT("MULTIPOINT (30 10)", 4);
+}
+
+TEST(GeoArrowGEOSTest, TestArrayReaderMultilinestring) {
+  TestReaderRoundtripWKT("MULTILINESTRING EMPTY", 5);
+  TestReaderRoundtripWKT("MULTILINESTRING ((30 10, 10 30, 40 40))", 5);
+  TestReaderRoundtripWKT(
+      "MULTILINESTRING ((10 10, 20 20, 10 40), (40 40, 30 30, 40 20, 30 10))", 5);
+}
+
+TEST(GeoArrowGEOSTest, TestArrayReaderMultipolygon) {
+  TestReaderRoundtripWKT("MULTIPOLYGON EMPTY", 6);
+  TestReaderRoundtripWKT(
+      "MULTIPOLYGON (((30 20, 45 40, 10 40, 30 20)), ((15 5, 40 10, 10 20, 5 10, 15 5)))",
+      6);
+  TestReaderRoundtripWKT(
+      "MULTIPOLYGON (((40 40, 20 45, 45 30, 40 40)), ((20 35, 10 30, 10 10, 30 5, 45 20, "
+      "20 35), (30 20, 20 15, 20 25, 30 20)))",
+      6);
+}
