@@ -597,7 +597,7 @@ static GeoArrowErrorCode MakeCollection(struct GeoArrowGEOSArrayReader* reader,
     }
 
     if (out[i] == NULL) {
-      GeoArrowErrorSet(&reader->error, "[%ld] GEOSGeom_createPolygon_r() failed",
+      GeoArrowErrorSet(&reader->error, "[%ld] GEOSGeom_createEmptyCollection_r() failed",
                        (long)i);
       return ENOMEM;
     }
