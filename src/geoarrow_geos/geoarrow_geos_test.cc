@@ -58,6 +58,11 @@ class GEOSCppWKTReader {
   }
 
   GeoArrowGEOSErrorCode Read(const std::string& wkt, GEOSGeometry** out) {
+    if (wkt == "") {
+      *out = nullptr;
+      return NANOARROW_OK;
+    }
+
     GEOSGeometry* result = GEOSWKTReader_read_r(handle, ptr, wkt.c_str());
     if (result == nullptr) {
       return EINVAL;
@@ -147,7 +152,15 @@ void TestBuilderRoundtripWKT(const std::string& wkt) {
 
   std::string wkt_out(data + offsets[0], offsets[1] - offsets[0]);
   EXPECT_EQ(wkt_out, wkt);
+
+  if (wkt_out == "") {
+    ASSERT_NE(array->buffers[0], nullptr);
+    const auto validity = reinterpret_cast<const uint8_t*>(array->buffers[0]);
+    EXPECT_EQ(validity[0] & (1 << 0), 0);
+  }
 }
+
+TEST(GeoArrowGEOSTest, TestArrayBuilderRoundtripWKTNull) { TestBuilderRoundtripWKT(""); }
 
 TEST(GeoArrowGEOSTest, TestArrayBuilderRoundtripWKTPoint) {
   TestBuilderRoundtripWKT("POINT EMPTY");
@@ -220,8 +233,13 @@ void TestReaderRoundtripWKTVec(const std::vector<std::string>& wkt, int wkb_type
 
   // Check for GEOS equality
   for (size_t i = 0; i < n; i++) {
-    EXPECT_EQ(GEOSEqualsExact_r(handle.handle, geoms_out.ptrs[i], geoms_in.ptrs[i], 0), 1)
-        << "WKT: " << wkt[i] << " at index " << i;
+    if (geoms_out.ptrs[i] == nullptr || geoms_in.ptrs[i] == nullptr) {
+      EXPECT_EQ(geoms_out.ptrs[i], geoms_in.ptrs[i]);
+    } else {
+      EXPECT_EQ(GEOSEqualsExact_r(handle.handle, geoms_out.ptrs[i], geoms_in.ptrs[i], 0),
+                1)
+          << "WKT: " << wkt[i] << " at index " << i;
+    }
   }
 }
 
@@ -230,6 +248,7 @@ void TestReaderRoundtripWKT(const std::string& wkt, int wkb_type) {
 }
 
 TEST(GeoArrowGEOSTest, TestArrayReaderPoint) {
+  TestReaderRoundtripWKT("", 1);
   TestReaderRoundtripWKT("POINT EMPTY", 1);
   TestReaderRoundtripWKT("POINT (0 1)", 1);
   TestReaderRoundtripWKT("POINT Z EMPTY", 1001);
@@ -237,13 +256,14 @@ TEST(GeoArrowGEOSTest, TestArrayReaderPoint) {
 
   TestReaderRoundtripWKTVec({}, 1);
   TestReaderRoundtripWKTVec({}, 1001);
-  TestReaderRoundtripWKTVec({"POINT EMPTY", "POINT (0 1)", "POINT (2 3)", "POINT EMPTY"},
-                            1);
   TestReaderRoundtripWKTVec(
-      {"POINT Z EMPTY", "POINT Z (0 1 2)", "POINT Z (3 4 5)", "POINT Z EMPTY"}, 1001);
+      {"POINT EMPTY", "POINT (0 1)", "POINT (2 3)", "POINT EMPTY", ""}, 1);
+  TestReaderRoundtripWKTVec(
+      {"POINT Z EMPTY", "POINT Z (0 1 2)", "POINT Z (3 4 5)", "POINT Z EMPTY", ""}, 1001);
 }
 
 TEST(GeoArrowGEOSTest, TestArrayReaderLinestring) {
+  TestReaderRoundtripWKT("", 2);
   TestReaderRoundtripWKT("LINESTRING EMPTY", 2);
   TestReaderRoundtripWKT("LINESTRING (0 1, 2 3)", 2);
   TestReaderRoundtripWKT("LINESTRING Z EMPTY", 2);
@@ -252,15 +272,16 @@ TEST(GeoArrowGEOSTest, TestArrayReaderLinestring) {
   TestReaderRoundtripWKTVec({}, 2);
   TestReaderRoundtripWKTVec({}, 1002);
   TestReaderRoundtripWKTVec({"LINESTRING EMPTY", "LINESTRING (0 1, 2 3)",
-                             "LINESTRING (4 5, 6 7, 8 9)", "LINESTRING EMPTY"},
+                             "LINESTRING (4 5, 6 7, 8 9)", "LINESTRING EMPTY", ""},
                             2);
   TestReaderRoundtripWKTVec(
       {"LINESTRING Z EMPTY", "LINESTRING Z (0 1 2, 3 4 5)",
-       "LINESTRING Z (6 7 8, 9 10 11, 12 13 14)", "LINESTRING Z EMPTY"},
+       "LINESTRING Z (6 7 8, 9 10 11, 12 13 14)", "LINESTRING Z EMPTY", ""},
       1002);
 }
 
 TEST(GeoArrowGEOSTest, TestArrayReaderPolygon) {
+  TestReaderRoundtripWKT("", 3);
   TestReaderRoundtripWKT("POLYGON EMPTY", 3);
   TestReaderRoundtripWKT("POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))", 3);
   TestReaderRoundtripWKT(
@@ -282,18 +303,19 @@ TEST(GeoArrowGEOSTest, TestArrayReaderPolygon) {
   TestReaderRoundtripWKTVec(
       {"POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))",
        "POLYGON ((35 10, 45 45, 15 40, 10 20, 35 10), (20 30, 35 35, 30 20, 20 30))",
-       "POLYGON EMPTY"},
+       "POLYGON EMPTY", ""},
       3);
 
   TestReaderRoundtripWKTVec(
       {"POLYGON Z ((30 10 40, 40 40 80, 20 40 60, 10 20 30, 30 10 40))",
        "POLYGON Z ((35 10 45, 45 45 90, 15 40 55, 10 20 30, 35 10 45), (20 30 50, 35 35 "
        "70, 30 20 50, 20 30 50))",
-       "POLYGON Z EMPTY"},
+       "POLYGON Z EMPTY", ""},
       1003);
 }
 
 TEST(GeoArrowGEOSTest, TestArrayReaderMultipoint) {
+  TestReaderRoundtripWKT("", 4);
   TestReaderRoundtripWKT("MULTIPOINT EMPTY", 4);
   TestReaderRoundtripWKT("MULTIPOINT (10 40, 40 30, 20 20, 30 10)", 4);
   TestReaderRoundtripWKT("MULTIPOINT (30 10)", 4);
@@ -302,18 +324,19 @@ TEST(GeoArrowGEOSTest, TestArrayReaderMultipoint) {
   TestReaderRoundtripWKTVec({}, 1004);
   TestReaderRoundtripWKTVec(
       {"MULTIPOINT ((30 10))", "MULTIPOINT ((10 40), (40 30), (20 20), (30 10))",
-       "MULTIPOINT ((10 40), (40 30), (20 20), (30 10))"},
+       "MULTIPOINT ((10 40), (40 30), (20 20), (30 10))", ""},
       4);
 
   TestReaderRoundtripWKTVec(
       {"MULTIPOINT Z ((30 10 40))",
        "MULTIPOINT Z ((10 40 50), (40 30 70), (20 20 40), (30 10 40))",
        "MULTIPOINT Z ((10 40 50), (40 30 70), (20 20 40), (30 10 40))",
-       "MULTIPOINT Z EMPTY"},
+       "MULTIPOINT Z EMPTY", ""},
       1004);
 }
 
 TEST(GeoArrowGEOSTest, TestArrayReaderMultilinestring) {
+  TestReaderRoundtripWKT("", 5);
   TestReaderRoundtripWKT("MULTILINESTRING EMPTY", 5);
   TestReaderRoundtripWKT("MULTILINESTRING ((30 10, 10 30, 40 40))", 5);
   TestReaderRoundtripWKT(
@@ -322,7 +345,7 @@ TEST(GeoArrowGEOSTest, TestArrayReaderMultilinestring) {
   TestReaderRoundtripWKTVec(
       {"MULTILINESTRING ((30 10, 10 30, 40 40))",
        "MULTILINESTRING ((10 10, 20 20, 10 40), (40 40, 30 30, 40 20, 30 10))",
-       "MULTILINESTRING EMPTY"},
+       "MULTILINESTRING EMPTY", ""},
       5);
 
   TestReaderRoundtripWKTVec({}, 5);
@@ -330,11 +353,12 @@ TEST(GeoArrowGEOSTest, TestArrayReaderMultilinestring) {
   TestReaderRoundtripWKTVec({"MULTILINESTRING Z ((30 10 40, 10 30 40, 40 40 80))",
                              "MULTILINESTRING Z ((10 10 20, 20 20 40, 10 40 50), (40 40 "
                              "80, 30 30 60, 40 20 60, 30 10 40))",
-                             "MULTILINESTRING Z EMPTY"},
+                             "MULTILINESTRING Z EMPTY", ""},
                             1005);
 }
 
 TEST(GeoArrowGEOSTest, TestArrayReaderMultipolygon) {
+  TestReaderRoundtripWKT("", 6);
   TestReaderRoundtripWKT("MULTIPOLYGON EMPTY", 6);
   TestReaderRoundtripWKT(
       "MULTIPOLYGON (((30 20, 45 40, 10 40, 30 20)), ((15 5, 40 10, 10 20, 5 10, 15 5)))",
@@ -352,7 +376,7 @@ TEST(GeoArrowGEOSTest, TestArrayReaderMultipolygon) {
        "5)))",
        "MULTIPOLYGON (((40 40, 20 45, 45 30, 40 40)), ((20 35, 10 30, 10 10, 30 5, 45 "
        "20, 20 35), (30 20, 20 15, 20 25, 30 20)))",
-       "MULTIPOLYGON EMPTY"},
+       "MULTIPOLYGON EMPTY", ""},
       6);
 
   TestReaderRoundtripWKTVec(
@@ -362,6 +386,6 @@ TEST(GeoArrowGEOSTest, TestArrayReaderMultipolygon) {
        "MULTIPOLYGON Z (((40 40 80, 20 45 65, 45 30 75, 40 40 80)), ((20 35 55, 10 30 "
        "40, 10 10 20, 30 5 35, 45 20 65, 20 35 55), (30 20 50, 20 15 35, 20 25 45, 30 20 "
        "50)))",
-       "MULTIPOLYGON Z EMPTY"},
+       "MULTIPOLYGON Z EMPTY", ""},
       1006);
 }
