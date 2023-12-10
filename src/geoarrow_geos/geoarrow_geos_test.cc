@@ -58,6 +58,11 @@ class GEOSCppWKTReader {
   }
 
   GeoArrowGEOSErrorCode Read(const std::string& wkt, GEOSGeometry** out) {
+    if (wkt == "") {
+      *out = nullptr;
+      return NANOARROW_OK;
+    }
+
     GEOSGeometry* result = GEOSWKTReader_read_r(handle, ptr, wkt.c_str());
     if (result == nullptr) {
       return EINVAL;
@@ -147,7 +152,15 @@ void TestBuilderRoundtripWKT(const std::string& wkt) {
 
   std::string wkt_out(data + offsets[0], offsets[1] - offsets[0]);
   EXPECT_EQ(wkt_out, wkt);
+
+  if (wkt_out == "") {
+    ASSERT_NE(array->buffers[0], nullptr);
+    const auto validity = reinterpret_cast<const uint8_t*>(array->buffers[0]);
+    EXPECT_EQ(validity[0] & (1 << 0), 0);
+  }
 }
+
+TEST(GeoArrowGEOSTest, TestArrayBuilderRoundtripWKTNull) { TestBuilderRoundtripWKT(""); }
 
 TEST(GeoArrowGEOSTest, TestArrayBuilderRoundtripWKTPoint) {
   TestBuilderRoundtripWKT("POINT EMPTY");
