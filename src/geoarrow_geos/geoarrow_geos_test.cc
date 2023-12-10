@@ -233,8 +233,12 @@ void TestReaderRoundtripWKTVec(const std::vector<std::string>& wkt, int wkb_type
 
   // Check for GEOS equality
   for (size_t i = 0; i < n; i++) {
-    EXPECT_EQ(GEOSEqualsExact_r(handle.handle, geoms_out.ptrs[i], geoms_in.ptrs[i], 0), 1)
+    if (geoms_out.ptrs[i] == nullptr || geoms_in.ptrs[i] == nullptr) {
+      EXPECT_EQ(geoms_out.ptrs[i], geoms_in.ptrs[i]);
+    } else {
+      EXPECT_EQ(GEOSEqualsExact_r(handle.handle, geoms_out.ptrs[i], geoms_in.ptrs[i], 0), 1)
         << "WKT: " << wkt[i] << " at index " << i;
+    }
   }
 }
 
@@ -243,6 +247,7 @@ void TestReaderRoundtripWKT(const std::string& wkt, int wkb_type) {
 }
 
 TEST(GeoArrowGEOSTest, TestArrayReaderPoint) {
+  TestReaderRoundtripWKT("", 1);
   TestReaderRoundtripWKT("POINT EMPTY", 1);
   TestReaderRoundtripWKT("POINT (0 1)", 1);
   TestReaderRoundtripWKT("POINT Z EMPTY", 1001);

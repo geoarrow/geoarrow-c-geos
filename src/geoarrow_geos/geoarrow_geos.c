@@ -368,10 +368,13 @@ static inline void GeoArrowGEOSBitmapReaderInit(
   bitmap_reader->bits = bits;
 
   if (bits != NULL) {
-    bitmap_reader->byte_i = (offset - 1) / 8;
-    bitmap_reader->bit_i = (offset - 1) % 8 + 1;
-    if (bitmap_reader->bit_i != 8) {
-      bitmap_reader->byte = bitmap_reader->bits[bitmap_reader->byte_i];
+    bitmap_reader->byte_i = offset / 8;
+    bitmap_reader->bit_i = offset % 8;
+    if (bitmap_reader->bit_i == 0) {
+      bitmap_reader->bit_i = 7;
+      bitmap_reader->byte_i--;
+    } else {
+      bitmap_reader->bit_i--;
     }
   }
 }
@@ -387,7 +390,7 @@ static inline int8_t GeoArrowGEOSBitmapReaderNextIsNull(
     bitmap_reader->bit_i = 0;
   }
 
-  return (bitmap_reader->bit_i & (1 << bitmap_reader->bit_i)) != 0;
+  return (bitmap_reader->bit_i & (1 << bitmap_reader->bit_i)) == 0;
 }
 
 struct GeoArrowGEOSArrayReader {
