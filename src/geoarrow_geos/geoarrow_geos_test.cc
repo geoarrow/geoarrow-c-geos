@@ -402,4 +402,5 @@ TEST(GeoArrowGEOSTest, TestArrayReaderMultipolygon) {
 INSTANTIATE_TEST_SUITE_P(GeoArrowGEOSTest, EncodingTestFixture,
                          ::testing::Values(GEOARROW_GEOS_ENCODING_GEOARROW,
                                            GEOARROW_GEOS_ENCODING_GEOARROW_INTERLEAVED,
-                                           GEOARROW_GEOS_ENCODING_WKB));
+                                           GEOARROW_GEOS_ENCODING_WKB,
+                                           GEOARROW_GEOS_ENCODING_WKT));
