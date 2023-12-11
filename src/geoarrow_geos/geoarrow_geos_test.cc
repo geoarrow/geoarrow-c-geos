@@ -3,7 +3,7 @@
 
 #include <nanoarrow/nanoarrow.hpp>
 
-#include "geoarrow_geos.h"
+#include "geoarrow_geos.hpp"
 
 class GEOSCppHandle {
  public:
@@ -24,26 +24,6 @@ class GEOSCppGeometry {
   ~GEOSCppGeometry() {
     if (ptr != nullptr) {
       GEOSGeom_destroy_r(handle, ptr);
-    }
-  }
-};
-
-class GEOSCppGeometryVec {
- public:
-  std::vector<GEOSGeometry*> ptrs;
-  GEOSContextHandle_t handle;
-
-  GEOSCppGeometryVec(GEOSContextHandle_t handle) : handle(handle) {}
-
-  GEOSGeometry** data() { return ptrs.data(); }
-
-  const GEOSGeometry** const_data() { return const_cast<const GEOSGeometry**>(data()); }
-
-  ~GEOSCppGeometryVec() {
-    for (const auto& ptr : ptrs) {
-      if (ptr != nullptr) {
-        GEOSGeom_destroy_r(handle, ptr);
-      }
     }
   }
 };
@@ -203,20 +183,19 @@ void TestReaderRoundtripWKTVec(
 
   GEOSCppWKTReader wkt_reader(handle.handle);
 
-  GEOSCppGeometryVec geoms_in(handle.handle);
-  GEOSCppGeometryVec geoms_out(handle.handle);
-  for (const auto& wkt_item : wkt) {
-    geoms_in.ptrs.push_back(nullptr);
-    geoms_out.ptrs.push_back(nullptr);
+  geoarrow::geos::GeometryVector geoms_in(handle.handle);
+  geoms_in.resize(wkt.size());
+  geoarrow::geos::GeometryVector geoms_out(handle.handle);
+  geoms_out.resize(wkt.size());
 
-    ASSERT_EQ(wkt_reader.Read(wkt_item, &geoms_in.ptrs.back()), GEOARROW_GEOS_OK)
-        << "Failed to append " << wkt_item;
+  for (size_t i = 0; i < wkt.size(); i++) {
+    ASSERT_EQ(wkt_reader.Read(wkt[i], geoms_in.mutable_data() + i), GEOARROW_GEOS_OK)
+        << "Failed to append " << wkt[i];
   }
 
   size_t n = 0;
-  ASSERT_EQ(
-      GeoArrowGEOSArrayBuilderAppend(builder.ptr, geoms_in.const_data(), wkt.size(), &n),
-      GEOARROW_GEOS_OK);
+  ASSERT_EQ(GeoArrowGEOSArrayBuilderAppend(builder.ptr, geoms_in.data(), wkt.size(), &n),
+            GEOARROW_GEOS_OK);
   ASSERT_EQ(n, wkt.size());
 
   nanoarrow::UniqueArray array;
@@ -226,18 +205,18 @@ void TestReaderRoundtripWKTVec(
   ASSERT_EQ(reader.Init(schema.get()), GEOARROW_GEOS_OK);
 
   ASSERT_EQ(GeoArrowGEOSArrayReaderRead(reader.ptr, array.get(), 0, array->length,
-                                        geoms_out.data()),
+                                        geoms_out.mutable_data()),
             GEOARROW_GEOS_OK)
       << "WKT[0]: " << wkt[0] << " n = " << n
       << "\n Error: " << GeoArrowGEOSArrayReaderGetLastError(reader.ptr);
 
   // Check for GEOS equality
   for (size_t i = 0; i < n; i++) {
-    if (geoms_out.ptrs[i] == nullptr || geoms_in.ptrs[i] == nullptr) {
-      EXPECT_EQ(geoms_out.ptrs[i], geoms_in.ptrs[i]);
+    if (geoms_out.borrow(i) == nullptr || geoms_in.borrow(i) == nullptr) {
+      EXPECT_EQ(geoms_out.borrow(i), geoms_in.borrow(i));
     } else {
-      EXPECT_EQ(GEOSEqualsExact_r(handle.handle, geoms_out.ptrs[i], geoms_in.ptrs[i], 0),
-                1)
+      EXPECT_EQ(
+          GEOSEqualsExact_r(handle.handle, geoms_out.borrow(i), geoms_in.borrow(i), 0), 1)
           << "WKT: " << wkt[i] << " at index " << i;
     }
   }
