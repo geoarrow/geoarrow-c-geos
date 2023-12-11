@@ -189,16 +189,16 @@ TEST(GeoArrowGEOSTest, TestArrayBuilderRoundtripWKTCollection) {
   TestBuilderRoundtripWKT("MULTIPOINT (30 10, 40 30, 20 20)");
 }
 
-void TestReaderRoundtripWKTVec(const std::vector<std::string>& wkt, int wkb_type) {
+void TestReaderRoundtripWKTVec(
+    const std::vector<std::string>& wkt, int wkb_type,
+    GeoArrowGEOSEncoding encoding = GEOARROW_GEOS_ENCODING_GEOARROW) {
   GEOSCppHandle handle;
   GeoArrowGEOSCppArrayBuilder builder(handle.handle);
   GeoArrowGEOSCppArrayReader reader(handle.handle);
 
   // Initialize builder + build a target array
   nanoarrow::UniqueSchema schema;
-  ASSERT_EQ(
-      GeoArrowGEOSMakeSchema(GEOARROW_GEOS_ENCODING_GEOARROW, wkb_type, schema.get()),
-      GEOARROW_GEOS_OK);
+  ASSERT_EQ(GeoArrowGEOSMakeSchema(encoding, wkb_type, schema.get()), GEOARROW_GEOS_OK);
   ASSERT_EQ(builder.Init(schema.get()), GEOARROW_GEOS_OK);
 
   GEOSCppWKTReader wkt_reader(handle.handle);
@@ -243,23 +243,32 @@ void TestReaderRoundtripWKTVec(const std::vector<std::string>& wkt, int wkb_type
   }
 }
 
-void TestReaderRoundtripWKT(const std::string& wkt, int wkb_type) {
-  TestReaderRoundtripWKTVec({wkt}, wkb_type);
+void TestReaderRoundtripWKT(
+    const std::string& wkt, int wkb_type,
+    GeoArrowGEOSEncoding encoding = GEOARROW_GEOS_ENCODING_GEOARROW) {
+  TestReaderRoundtripWKTVec({wkt}, wkb_type, encoding);
 }
 
-TEST(GeoArrowGEOSTest, TestArrayReaderPoint) {
-  TestReaderRoundtripWKT("", 1);
-  TestReaderRoundtripWKT("POINT EMPTY", 1);
-  TestReaderRoundtripWKT("POINT (0 1)", 1);
-  TestReaderRoundtripWKT("POINT Z EMPTY", 1001);
-  TestReaderRoundtripWKT("POINT Z (0 1 2)", 1001);
+class EncodingTestFixture : public ::testing::TestWithParam<GeoArrowGEOSEncoding> {
+ protected:
+  GeoArrowGEOSEncoding encoding;
+};
 
-  TestReaderRoundtripWKTVec({}, 1);
-  TestReaderRoundtripWKTVec({}, 1001);
+TEST_P(EncodingTestFixture, TestArrayReaderPoint) {
+  GeoArrowGEOSEncoding encoding = GetParam();
+  TestReaderRoundtripWKT("", 1, encoding);
+  TestReaderRoundtripWKT("POINT EMPTY", 1, encoding);
+  TestReaderRoundtripWKT("POINT (0 1)", 1, encoding);
+  TestReaderRoundtripWKT("POINT Z EMPTY", 1001, encoding);
+  TestReaderRoundtripWKT("POINT Z (0 1 2)", 1001, encoding);
+
+  TestReaderRoundtripWKTVec({}, 1, encoding);
+  TestReaderRoundtripWKTVec({}, 1001, encoding);
   TestReaderRoundtripWKTVec(
-      {"POINT EMPTY", "POINT (0 1)", "POINT (2 3)", "POINT EMPTY", ""}, 1);
+      {"POINT EMPTY", "POINT (0 1)", "POINT (2 3)", "POINT EMPTY", ""}, 1, encoding);
   TestReaderRoundtripWKTVec(
-      {"POINT Z EMPTY", "POINT Z (0 1 2)", "POINT Z (3 4 5)", "POINT Z EMPTY", ""}, 1001);
+      {"POINT Z EMPTY", "POINT Z (0 1 2)", "POINT Z (3 4 5)", "POINT Z EMPTY", ""}, 1001,
+      encoding);
 }
 
 TEST(GeoArrowGEOSTest, TestArrayReaderLinestring) {
@@ -389,3 +398,8 @@ TEST(GeoArrowGEOSTest, TestArrayReaderMultipolygon) {
        "MULTIPOLYGON Z EMPTY", ""},
       1006);
 }
+
+INSTANTIATE_TEST_SUITE_P(GeoArrowGEOSTest, EncodingTestFixture,
+                         ::testing::Values(GEOARROW_GEOS_ENCODING_GEOARROW,
+                                           GEOARROW_GEOS_ENCODING_GEOARROW_INTERLEAVED,
+                                           GEOARROW_GEOS_ENCODING_WKB));

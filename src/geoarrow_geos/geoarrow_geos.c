@@ -464,6 +464,34 @@ const char* GeoArrowGEOSArrayReaderGetLastError(struct GeoArrowGEOSArrayReader* 
   return reader->error.message;
 }
 
+static GeoArrowErrorCode MakeGeomFromWKB(struct GeoArrowGEOSArrayReader* reader,
+                                         size_t offset, size_t length,
+                                         GEOSGeometry** out) {
+  offset += reader->array_view.offset[0];
+
+  GeoArrowGEOSBitmapReaderInit(&reader->bitmap_reader, reader->array_view.validity_bitmap,
+                               offset);
+
+  for (size_t i = 0; i < length; i++) {
+    if (GeoArrowGEOSBitmapReaderNextIsNull(&reader->bitmap_reader)) {
+      out[i] = NULL;
+      continue;
+    }
+
+    int64_t data_offset = reader->array_view.offsets[0][i];
+    int64_t data_size = reader->array_view.offsets[0][i + 1] - data_offset;
+
+    out[i] = GEOSWKBReader_read_r(reader->handle, reader->wkb_reader,
+                                  reader->array_view.data + data_offset, data_size);
+    if (out[i] == NULL) {
+      GeoArrowErrorSet(&reader->error, "[%ld] GEOSWKBReader_read_r() failed", (long)i);
+      return ENOMEM;
+    }
+  }
+
+  return GEOARROW_OK;
+}
+
 static GeoArrowErrorCode MakeCoordSeq(struct GeoArrowGEOSArrayReader* reader,
                                       size_t offset, size_t length,
                                       GEOSCoordSequence** out) {
@@ -705,32 +733,46 @@ GeoArrowGEOSErrorCode GeoArrowGEOSArrayReaderRead(struct GeoArrowGEOSArrayReader
   memset(out, 0, sizeof(GEOSGeometry*) * length);
 
   GeoArrowErrorCode result;
-  switch (reader->array_view.schema_view.geometry_type) {
-    case GEOARROW_GEOMETRY_TYPE_POINT:
-      result = MakePoints(reader, offset, length, out);
-      break;
-    case GEOARROW_GEOMETRY_TYPE_LINESTRING:
-      result = MakeLinestrings(reader, offset, length, out);
-      break;
-    case GEOARROW_GEOMETRY_TYPE_POLYGON:
-      result = MakePolygons(reader, offset, length, out);
-      break;
-    case GEOARROW_GEOMETRY_TYPE_MULTIPOINT:
-      result =
-          MakeCollection(reader, offset, length, out, 0, 1, GEOS_MULTIPOINT, &MakePoints);
-      break;
-    case GEOARROW_GEOMETRY_TYPE_MULTILINESTRING:
-      result = MakeCollection(reader, offset, length, out, 0, 2, GEOS_MULTILINESTRING,
-                              &MakeLinestrings);
-      break;
-    case GEOARROW_GEOMETRY_TYPE_MULTIPOLYGON:
-      result = MakeCollection(reader, offset, length, out, 1, 3, GEOS_MULTIPOLYGON,
-                              &MakePolygons);
+  switch (reader->array_view.schema_view.type) {
+    case GEOARROW_TYPE_WKB:
+      if (reader->wkb_reader == NULL) {
+        reader->wkb_reader = GEOSWKBReader_create_r(reader->handle);
+        if (reader->wkb_reader == NULL) {
+          GeoArrowErrorSet(&reader->error, "GEOSWKBReader_create_r() failed");
+          return ENOMEM;
+        }
+      }
+
+      result = MakeGeomFromWKB(reader, offset, length, out);
       break;
     default:
-      GeoArrowErrorSet(&reader->error,
-                       "GeoArrowGEOSArrayReaderRead not implemented for geometry type");
-      return ENOTSUP;
+      switch (reader->array_view.schema_view.geometry_type) {
+        case GEOARROW_GEOMETRY_TYPE_POINT:
+          result = MakePoints(reader, offset, length, out);
+          break;
+        case GEOARROW_GEOMETRY_TYPE_LINESTRING:
+          result = MakeLinestrings(reader, offset, length, out);
+          break;
+        case GEOARROW_GEOMETRY_TYPE_POLYGON:
+          result = MakePolygons(reader, offset, length, out);
+          break;
+        case GEOARROW_GEOMETRY_TYPE_MULTIPOINT:
+          result = MakeCollection(reader, offset, length, out, 0, 1, GEOS_MULTIPOINT,
+                                  &MakePoints);
+          break;
+        case GEOARROW_GEOMETRY_TYPE_MULTILINESTRING:
+          result = MakeCollection(reader, offset, length, out, 0, 2, GEOS_MULTILINESTRING,
+                                  &MakeLinestrings);
+          break;
+        case GEOARROW_GEOMETRY_TYPE_MULTIPOLYGON:
+          result = MakeCollection(reader, offset, length, out, 1, 3, GEOS_MULTIPOLYGON,
+                                  &MakePolygons);
+          break;
+        default:
+          GeoArrowErrorSet(&reader->error,
+                           "GeoArrowGEOSArrayReaderRead not implemented for array type");
+          return ENOTSUP;
+      }
   }
 
   // If we failed, clean up any allocated geometries
