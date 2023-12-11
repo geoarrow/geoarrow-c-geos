@@ -328,62 +328,69 @@ TEST_P(EncodingTestFixture, TestArrayReaderPolygon) {
       1003, encoding);
 }
 
-TEST(GeoArrowGEOSTest, TestArrayReaderMultipoint) {
-  TestReaderRoundtripWKT("", 4);
-  TestReaderRoundtripWKT("MULTIPOINT EMPTY", 4);
-  TestReaderRoundtripWKT("MULTIPOINT (10 40, 40 30, 20 20, 30 10)", 4);
-  TestReaderRoundtripWKT("MULTIPOINT (30 10)", 4);
+TEST_P(EncodingTestFixture, TestArrayReaderMultipoint) {
+  GeoArrowGEOSEncoding encoding = GetParam();
 
-  TestReaderRoundtripWKTVec({}, 4);
-  TestReaderRoundtripWKTVec({}, 1004);
+  TestReaderRoundtripWKT("", 4, encoding);
+  TestReaderRoundtripWKT("MULTIPOINT EMPTY", 4, encoding);
+  TestReaderRoundtripWKT("MULTIPOINT (10 40, 40 30, 20 20, 30 10)", 4, encoding);
+  TestReaderRoundtripWKT("MULTIPOINT (30 10)", 4, encoding);
+
+  TestReaderRoundtripWKTVec({}, 4, encoding);
+  TestReaderRoundtripWKTVec({}, 1004, encoding);
   TestReaderRoundtripWKTVec(
       {"MULTIPOINT ((30 10))", "MULTIPOINT ((10 40), (40 30), (20 20), (30 10))",
        "MULTIPOINT ((10 40), (40 30), (20 20), (30 10))", ""},
-      4);
+      4, encoding);
 
   TestReaderRoundtripWKTVec(
       {"MULTIPOINT Z ((30 10 40))",
        "MULTIPOINT Z ((10 40 50), (40 30 70), (20 20 40), (30 10 40))",
        "MULTIPOINT Z ((10 40 50), (40 30 70), (20 20 40), (30 10 40))",
        "MULTIPOINT Z EMPTY", ""},
-      1004);
+      1004, encoding);
 }
 
-TEST(GeoArrowGEOSTest, TestArrayReaderMultilinestring) {
-  TestReaderRoundtripWKT("", 5);
-  TestReaderRoundtripWKT("MULTILINESTRING EMPTY", 5);
-  TestReaderRoundtripWKT("MULTILINESTRING ((30 10, 10 30, 40 40))", 5);
+TEST_P(EncodingTestFixture, TestArrayReaderMultilinestring) {
+  GeoArrowGEOSEncoding encoding = GetParam();
+
+  TestReaderRoundtripWKT("", 5, encoding);
+  TestReaderRoundtripWKT("MULTILINESTRING EMPTY", 5, encoding);
+  TestReaderRoundtripWKT("MULTILINESTRING ((30 10, 10 30, 40 40))", 5, encoding);
   TestReaderRoundtripWKT(
-      "MULTILINESTRING ((10 10, 20 20, 10 40), (40 40, 30 30, 40 20, 30 10))", 5);
+      "MULTILINESTRING ((10 10, 20 20, 10 40), (40 40, 30 30, 40 20, 30 10))", 5,
+      encoding);
 
   TestReaderRoundtripWKTVec(
       {"MULTILINESTRING ((30 10, 10 30, 40 40))",
        "MULTILINESTRING ((10 10, 20 20, 10 40), (40 40, 30 30, 40 20, 30 10))",
        "MULTILINESTRING EMPTY", ""},
-      5);
+      5, encoding);
 
-  TestReaderRoundtripWKTVec({}, 5);
-  TestReaderRoundtripWKTVec({}, 1005);
+  TestReaderRoundtripWKTVec({}, 5, encoding);
+  TestReaderRoundtripWKTVec({}, 1005, encoding);
   TestReaderRoundtripWKTVec({"MULTILINESTRING Z ((30 10 40, 10 30 40, 40 40 80))",
                              "MULTILINESTRING Z ((10 10 20, 20 20 40, 10 40 50), (40 40 "
                              "80, 30 30 60, 40 20 60, 30 10 40))",
                              "MULTILINESTRING Z EMPTY", ""},
-                            1005);
+                            1005, encoding);
 }
 
-TEST(GeoArrowGEOSTest, TestArrayReaderMultipolygon) {
-  TestReaderRoundtripWKT("", 6);
-  TestReaderRoundtripWKT("MULTIPOLYGON EMPTY", 6);
+TEST_P(EncodingTestFixture, TestArrayReaderMultipolygon) {
+  GeoArrowGEOSEncoding encoding = GetParam();
+
+  TestReaderRoundtripWKT("", 6, encoding);
+  TestReaderRoundtripWKT("MULTIPOLYGON EMPTY", 6, encoding);
   TestReaderRoundtripWKT(
       "MULTIPOLYGON (((30 20, 45 40, 10 40, 30 20)), ((15 5, 40 10, 10 20, 5 10, 15 5)))",
-      6);
+      6, encoding);
   TestReaderRoundtripWKT(
       "MULTIPOLYGON (((40 40, 20 45, 45 30, 40 40)), ((20 35, 10 30, 10 10, 30 5, 45 20, "
       "20 35), (30 20, 20 15, 20 25, 30 20)))",
-      6);
+      6, encoding);
 
-  TestReaderRoundtripWKTVec({}, 6);
-  TestReaderRoundtripWKTVec({}, 1006);
+  TestReaderRoundtripWKTVec({}, 6, encoding);
+  TestReaderRoundtripWKTVec({}, 1006, encoding);
   TestReaderRoundtripWKTVec(
       {"MULTIPOLYGON (((30 10, 40 40, 20 40, 10 20, 30 10)))",
        "MULTIPOLYGON (((30 20, 45 40, 10 40, 30 20)), ((15 5, 40 10, 10 20, 5 10, 15 "
@@ -391,7 +398,7 @@ TEST(GeoArrowGEOSTest, TestArrayReaderMultipolygon) {
        "MULTIPOLYGON (((40 40, 20 45, 45 30, 40 40)), ((20 35, 10 30, 10 10, 30 5, 45 "
        "20, 20 35), (30 20, 20 15, 20 25, 30 20)))",
        "MULTIPOLYGON EMPTY", ""},
-      6);
+      6, encoding);
 
   TestReaderRoundtripWKTVec(
       {"MULTIPOLYGON Z (((30 10 40, 40 40 80, 20 40 60, 10 20 30, 30 10 40)))",
@@ -401,7 +408,7 @@ TEST(GeoArrowGEOSTest, TestArrayReaderMultipolygon) {
        "40, 10 10 20, 30 5 35, 45 20 65, 20 35 55), (30 20 50, 20 15 35, 20 25 45, 30 20 "
        "50)))",
        "MULTIPOLYGON Z EMPTY", ""},
-      1006);
+      1006, encoding);
 }
 
 INSTANTIATE_TEST_SUITE_P(GeoArrowGEOSTest, EncodingTestFixture,
