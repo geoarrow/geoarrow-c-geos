@@ -873,5 +873,9 @@ void GeoArrowGEOSArrayReaderDestroy(struct GeoArrowGEOSArrayReader* reader) {
     }
   }
 
+  if (reader->wkt_temp != NULL) {
+    free(reader->wkt_temp);
+  }
+
   free(reader);
 }
