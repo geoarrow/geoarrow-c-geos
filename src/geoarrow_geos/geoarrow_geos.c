@@ -858,15 +858,16 @@ void GeoArrowGEOSArrayReaderDestroy(struct GeoArrowGEOSArrayReader* reader) {
   free(reader);
 }
 
-struct GeoArrowSchemaCalculator {
+struct GeoArrowGEOSSchemaCalculator {
   int geometry_type;
   int dimensions;
 };
 
 GeoArrowGEOSErrorCode GeoArrowGEOSSchemaCalculatorCreate(
-    struct GeoArrowSchemaCalculator** out) {
-  struct GeoArrowSchemaCalculator* calc =
-      (struct GeoArrowSchemaCalculator*)malloc(sizeof(struct GeoArrowSchemaCalculator));
+    struct GeoArrowGEOSSchemaCalculator** out) {
+  struct GeoArrowGEOSSchemaCalculator* calc =
+      (struct GeoArrowGEOSSchemaCalculator*)malloc(
+          sizeof(struct GeoArrowGEOSSchemaCalculator));
   if (calc == NULL) {
     *out = NULL;
     return ENOMEM;
@@ -993,16 +994,20 @@ static int Dimensions2(int x, int y) {
   }
 }
 
-void GeoArrowGEOSSchemaCalculatorIngest(struct GeoArrowSchemaCalculator* calc,
-                                        int32_t* wkb_type, size_t n) {
+void GeoArrowGEOSSchemaCalculatorIngest(struct GeoArrowGEOSSchemaCalculator* calc,
+                                        const int32_t* wkb_type, size_t n) {
   for (size_t i = 0; i < n; i++) {
+    if (wkb_type[i] == 0) {
+      continue;
+    }
+
     calc->geometry_type = GeometryType2(calc->geometry_type, wkb_type[i] % 1000);
     calc->dimensions = Dimensions2(calc->dimensions, wkb_type[i] / 1000);
   }
 }
 
 GeoArrowGEOSErrorCode GeoArrowGEOSSchemaCalculatorFinish(
-    struct GeoArrowSchemaCalculator* calc, enum GeoArrowGEOSEncoding encoding,
+    struct GeoArrowGEOSSchemaCalculator* calc, enum GeoArrowGEOSEncoding encoding,
     struct ArrowSchema* out) {
   enum GeoArrowCoordType coord_type;
   switch (encoding) {
@@ -1021,11 +1026,6 @@ GeoArrowGEOSErrorCode GeoArrowGEOSSchemaCalculatorFinish(
 
   enum GeoArrowGeometryType geometry_type;
   switch (calc->geometry_type) {
-    case -1:
-      // We don't have an "empty"/"null" type to return, but "POINT" is also
-      // not quite right.
-      geometry_type = GEOARROW_GEOMETRY_TYPE_GEOMETRY;
-      break;
     case GEOARROW_GEOMETRY_TYPE_POINT:
     case GEOARROW_GEOMETRY_TYPE_LINESTRING:
     case GEOARROW_GEOMETRY_TYPE_POLYGON:
@@ -1034,9 +1034,11 @@ GeoArrowGEOSErrorCode GeoArrowGEOSSchemaCalculatorFinish(
     case GEOARROW_GEOMETRY_TYPE_MULTIPOLYGON:
       geometry_type = (enum GeoArrowGeometryType)calc->geometry_type;
       break;
+    case -1:
+      // We don't have an "empty"/"null" type to return, but "POINT" is also
+      // not quite right.
     default:
-      geometry_type = GEOARROW_GEOMETRY_TYPE_GEOMETRY;
-      break;
+      return GeoArrowGEOSMakeSchema(GEOARROW_GEOS_ENCODING_WKB, 0, out);
   }
 
   enum GeoArrowDimensions dimensions;
@@ -1051,15 +1053,16 @@ GeoArrowGEOSErrorCode GeoArrowGEOSSchemaCalculatorFinish(
       dimensions = (enum GeoArrowDimensions)calc->dimensions;
       break;
     default:
-      // Something may have gone wrong (invalid wkb_type input?)
-      geometry_type = GEOARROW_GEOMETRY_TYPE_GEOMETRY;
-      dimensions = GEOARROW_DIMENSIONS_XYZM;
-      break;
+      return GeoArrowGEOSMakeSchema(GEOARROW_GEOS_ENCODING_WKB, 0, out);
   }
 
   enum GeoArrowType type = GeoArrowMakeType(geometry_type, dimensions, coord_type);
   GEOARROW_RETURN_NOT_OK(GeoArrowSchemaInitExtension(out, type));
   return GEOARROW_OK;
+}
+
+void GeoArrowGEOSSchemaCalculatorDestroy(struct GeoArrowGEOSSchemaCalculator* calc) {
+  free(calc);
 }
 
 GeoArrowGEOSErrorCode GeoArrowGEOSMakeSchema(int32_t encoding, int32_t wkb_type,

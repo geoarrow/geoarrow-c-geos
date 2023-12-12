@@ -180,6 +180,32 @@ class ArrayReader {
   GeoArrowGEOSArrayReader* reader_;
 };
 
+class SchemaCalculator {
+ public:
+  SchemaCalculator() : calc_(nullptr) { GeoArrowGEOSSchemaCalculatorCreate(&calc_); }
+
+  SchemaCalculator(SchemaCalculator&& rhs) : calc_(rhs.calc_) { rhs.calc_ = nullptr; }
+
+  SchemaCalculator(SchemaCalculator& rhs) = delete;
+
+  ~SchemaCalculator() {
+    if (calc_ != nullptr) {
+      GeoArrowGEOSSchemaCalculatorDestroy(calc_);
+    }
+  }
+
+  void Ingest(const int32_t* wkb_type, size_t n) {
+    GeoArrowGEOSSchemaCalculatorIngest(calc_, wkb_type, n);
+  }
+
+  GeoArrowGEOSErrorCode Finish(enum GeoArrowGEOSEncoding encoding, ArrowSchema* out) {
+    return GeoArrowGEOSSchemaCalculatorFinish(calc_, encoding, out);
+  }
+
+ private:
+  GeoArrowGEOSSchemaCalculator* calc_;
+};
+
 }  // namespace geos
 
 }  // namespace geoarrow
