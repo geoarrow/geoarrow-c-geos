@@ -172,8 +172,8 @@ class ArrayReader {
   }
 
   GeoArrowGEOSErrorCode Read(ArrowArray* array, int64_t offset, int64_t length,
-                             GEOSGeometry** out) {
-    return GeoArrowGEOSArrayReaderRead(reader_, array, offset, length, out);
+                             GEOSGeometry** out, size_t* n_out) {
+    return GeoArrowGEOSArrayReaderRead(reader_, array, offset, length, out, n_out);
   }
 
  private:

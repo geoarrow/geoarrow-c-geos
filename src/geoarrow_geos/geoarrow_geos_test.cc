@@ -147,9 +147,11 @@ void TestReaderRoundtripWKTVec(
   // Read it back!
   ASSERT_EQ(reader.InitFromEncoding(handle.handle, encoding, wkb_type), GEOARROW_GEOS_OK);
 
-  ASSERT_EQ(reader.Read(array.get(), 0, array->length, geoms_out.mutable_data()),
+  size_t n_out = 0;
+  ASSERT_EQ(reader.Read(array.get(), 0, array->length, geoms_out.mutable_data(), &n_out),
             GEOARROW_GEOS_OK)
       << "WKT[0]: " << wkt[0] << " n = " << n << "\n Error: " << reader.GetLastError();
+  ASSERT_EQ(n_out, n);
 
   // Check for GEOS equality
   for (size_t i = 0; i < n; i++) {
