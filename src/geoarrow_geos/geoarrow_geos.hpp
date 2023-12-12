@@ -60,6 +60,7 @@ class ArrayBuilder {
 };
 
 class ArrayReader {
+public:
   ArrayReader() : reader_(nullptr) {}
 
   ~ArrayReader() {
