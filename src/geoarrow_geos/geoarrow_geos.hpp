@@ -1,4 +1,6 @@
 
+#include <vector>
+
 #include "geoarrow_geos.h"
 
 namespace geoarrow {
@@ -55,12 +57,61 @@ class GeometryVector {
 };
 
 class ArrayBuilder {
+ public:
+  ArrayBuilder() : builder_(nullptr) {}
+
+  ~ArrayBuilder() {
+    if (builder_ != nullptr) {
+      GeoArrowGEOSArrayBuilderDestroy(builder_);
+    }
+  }
+
+  const char* GetLastError() {
+    if (builder_ == nullptr) {
+      return "";
+    } else {
+      return GeoArrowGEOSArrayBuilderGetLastError(builder_);
+    }
+  }
+
+  GeoArrowGEOSErrorCode InitFromEncoding(GEOSContextHandle_t handle,
+                                         GeoArrowGEOSEncoding encoding,
+                                         int wkb_type = 0) {
+    ArrowSchema tmp_schema;
+    tmp_schema.release = nullptr;
+    int result = GeoArrowGEOSMakeSchema(encoding, wkb_type, &tmp_schema);
+    if (result != GEOARROW_GEOS_OK) {
+      return result;
+    }
+
+    result = InitFromSchema(handle, &tmp_schema);
+    tmp_schema.release(&tmp_schema);
+    return result;
+  }
+
+  GeoArrowGEOSErrorCode InitFromSchema(GEOSContextHandle_t handle, ArrowSchema* schema) {
+    if (builder_ != nullptr) {
+      GeoArrowGEOSArrayBuilderDestroy(builder_);
+    }
+
+    return GeoArrowGEOSArrayBuilderCreate(handle, schema, &builder_);
+  }
+
+  GeoArrowGEOSErrorCode Append(const GEOSGeometry** geom, size_t geom_size,
+                               size_t* n_appended) {
+    return GeoArrowGEOSArrayBuilderAppend(builder_, geom, geom_size, n_appended);
+  }
+
+  GeoArrowGEOSErrorCode Finish(struct ArrowArray* out) {
+    return GeoArrowGEOSArrayBuilderFinish(builder_, out);
+  }
+
  private:
   GeoArrowGEOSArrayBuilder* builder_;
 };
 
 class ArrayReader {
-public:
+ public:
   ArrayReader() : reader_(nullptr) {}
 
   ~ArrayReader() {

@@ -74,12 +74,12 @@ const char* GeoArrowGEOSVersionGeoArrow(void);
 
 struct GeoArrowGEOSArrayBuilder;
 
+GeoArrowGEOSErrorCode GeoArrowGEOSMakeSchema(int32_t encoding, int32_t wkb_type,
+                                             struct ArrowSchema* out);
+
 GeoArrowGEOSErrorCode GeoArrowGEOSArrayBuilderCreate(
     GEOSContextHandle_t handle, struct ArrowSchema* schema,
     struct GeoArrowGEOSArrayBuilder** out);
-
-GeoArrowGEOSErrorCode GeoArrowGEOSMakeSchema(int32_t encoding, int32_t wkb_type,
-                                             struct ArrowSchema* out);
 
 void GeoArrowGEOSArrayBuilderDestroy(struct GeoArrowGEOSArrayBuilder* builder);
 

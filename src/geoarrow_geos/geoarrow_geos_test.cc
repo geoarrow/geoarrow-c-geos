@@ -59,25 +59,6 @@ class GEOSCppWKTReader {
   }
 };
 
-class GeoArrowGEOSCppArrayBuilder {
- public:
-  GeoArrowGEOSArrayBuilder* ptr;
-  GEOSContextHandle_t handle;
-
-  GeoArrowGEOSCppArrayBuilder(GEOSContextHandle_t handle)
-      : ptr(nullptr), handle(handle) {}
-
-  GeoArrowGEOSErrorCode Init(ArrowSchema* schema) {
-    return GeoArrowGEOSArrayBuilderCreate(handle, schema, &ptr);
-  }
-
-  ~GeoArrowGEOSCppArrayBuilder() {
-    if (ptr != nullptr) {
-      GeoArrowGEOSArrayBuilderDestroy(ptr);
-    }
-  }
-};
-
 TEST(GeoArrowGEOSTest, TestVersions) {
   ASSERT_EQ(std::string(GeoArrowGEOSVersionGEOS()).substr(0, 1), "3");
   ASSERT_STREQ(GeoArrowGEOSVersionGeoArrow(), "0.2.0-SNAPSHOT");
@@ -87,24 +68,20 @@ void TestBuilderRoundtripWKT(const std::string& wkt) {
   GEOSCppHandle handle;
   GEOSCppWKTReader reader(handle.handle);
   GEOSCppGeometry geom(handle.handle);
-  GeoArrowGEOSCppArrayBuilder builder(handle.handle);
-  nanoarrow::UniqueSchema schema;
+  geoarrow::geos::ArrayBuilder builder;
 
-  ASSERT_EQ(GeoArrowGEOSMakeSchema(GEOARROW_GEOS_ENCODING_WKT, 0, schema.get()),
+  ASSERT_EQ(builder.InitFromEncoding(handle.handle, GEOARROW_GEOS_ENCODING_WKT),
             GEOARROW_GEOS_OK);
-  ASSERT_EQ(builder.Init(schema.get()), GEOARROW_GEOS_OK);
 
   ASSERT_EQ(reader.Read(wkt, &geom.ptr), GEOARROW_GEOS_OK);
   size_t n = 0;
   const GEOSGeometry* geom_const = geom.ptr;
-  ASSERT_EQ(GeoArrowGEOSArrayBuilderAppend(builder.ptr, &geom_const, 1, &n),
-            GEOARROW_GEOS_OK)
-      << "WKT: " << wkt
-      << "\n Error: " << GeoArrowGEOSArrayBuilderGetLastError(builder.ptr);
+  ASSERT_EQ(builder.Append(&geom_const, 1, &n), GEOARROW_GEOS_OK)
+      << "WKT: " << wkt << "\n Error: " << builder.GetLastError();
   ASSERT_EQ(n, 1);
 
   nanoarrow::UniqueArray array;
-  ASSERT_EQ(GeoArrowGEOSArrayBuilderFinish(builder.ptr, array.get()), GEOARROW_GEOS_OK);
+  ASSERT_EQ(builder.Finish(array.get()), GEOARROW_GEOS_OK);
 
   ASSERT_EQ(array->length, 1);
   ASSERT_EQ(array->n_buffers, 3);
@@ -155,13 +132,12 @@ void TestReaderRoundtripWKTVec(
     const std::vector<std::string>& wkt, int wkb_type,
     GeoArrowGEOSEncoding encoding = GEOARROW_GEOS_ENCODING_GEOARROW) {
   GEOSCppHandle handle;
-  GeoArrowGEOSCppArrayBuilder builder(handle.handle);
+  geoarrow::geos::ArrayBuilder builder;
   geoarrow::geos::ArrayReader reader;
 
   // Initialize builder + build a target array
-  nanoarrow::UniqueSchema schema;
-  ASSERT_EQ(GeoArrowGEOSMakeSchema(encoding, wkb_type, schema.get()), GEOARROW_GEOS_OK);
-  ASSERT_EQ(builder.Init(schema.get()), GEOARROW_GEOS_OK);
+  ASSERT_EQ(builder.InitFromEncoding(handle.handle, encoding, wkb_type),
+            GEOARROW_GEOS_OK);
 
   GEOSCppWKTReader wkt_reader(handle.handle);
 
@@ -176,12 +152,11 @@ void TestReaderRoundtripWKTVec(
   }
 
   size_t n = 0;
-  ASSERT_EQ(GeoArrowGEOSArrayBuilderAppend(builder.ptr, geoms_in.data(), wkt.size(), &n),
-            GEOARROW_GEOS_OK);
+  ASSERT_EQ(builder.Append(geoms_in.data(), wkt.size(), &n), GEOARROW_GEOS_OK);
   ASSERT_EQ(n, wkt.size());
 
   nanoarrow::UniqueArray array;
-  ASSERT_EQ(GeoArrowGEOSArrayBuilderFinish(builder.ptr, array.get()), GEOARROW_GEOS_OK);
+  ASSERT_EQ(builder.Finish(array.get()), GEOARROW_GEOS_OK);
 
   // Read it back!
   ASSERT_EQ(reader.InitFromEncoding(handle.handle, encoding, wkb_type), GEOARROW_GEOS_OK);
