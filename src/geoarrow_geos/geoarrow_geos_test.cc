@@ -14,20 +14,6 @@ class GEOSCppHandle {
   ~GEOSCppHandle() { GEOS_finish_r(handle); }
 };
 
-class GEOSCppGeometry {
- public:
-  GEOSGeometry* ptr;
-  GEOSContextHandle_t handle;
-
-  GEOSCppGeometry(GEOSContextHandle_t handle) : handle(handle), ptr(nullptr) {}
-
-  ~GEOSCppGeometry() {
-    if (ptr != nullptr) {
-      GEOSGeom_destroy_r(handle, ptr);
-    }
-  }
-};
-
 class GEOSCppWKTReader {
  public:
   GEOSWKTReader* ptr;
@@ -67,16 +53,16 @@ TEST(GeoArrowGEOSTest, TestVersions) {
 void TestBuilderRoundtripWKT(const std::string& wkt) {
   GEOSCppHandle handle;
   GEOSCppWKTReader reader(handle.handle);
-  GEOSCppGeometry geom(handle.handle);
+  geoarrow::geos::GeometryVector geom(handle.handle);
   geoarrow::geos::ArrayBuilder builder;
 
   ASSERT_EQ(builder.InitFromEncoding(handle.handle, GEOARROW_GEOS_ENCODING_WKT),
             GEOARROW_GEOS_OK);
 
-  ASSERT_EQ(reader.Read(wkt, &geom.ptr), GEOARROW_GEOS_OK);
+  geom.resize(1);
+  ASSERT_EQ(reader.Read(wkt, geom.mutable_data()), GEOARROW_GEOS_OK);
   size_t n = 0;
-  const GEOSGeometry* geom_const = geom.ptr;
-  ASSERT_EQ(builder.Append(&geom_const, 1, &n), GEOARROW_GEOS_OK)
+  ASSERT_EQ(builder.Append(geom.data(), 1, &n), GEOARROW_GEOS_OK)
       << "WKT: " << wkt << "\n Error: " << builder.GetLastError();
   ASSERT_EQ(n, 1);
 
