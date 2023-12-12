@@ -61,40 +61,6 @@ GeoArrowGEOSErrorCode GeoArrowGEOSArrayBuilderCreate(
   return GEOARROW_OK;
 }
 
-GeoArrowGEOSErrorCode GeoArrowGEOSMakeSchema(int32_t encoding, int32_t wkb_type,
-                                             struct ArrowSchema* out) {
-  enum GeoArrowType type = GEOARROW_TYPE_UNINITIALIZED;
-  enum GeoArrowGeometryType geometry_type = GEOARROW_GEOMETRY_TYPE_GEOMETRY;
-  enum GeoArrowDimensions dimensions = GEOARROW_DIMENSIONS_UNKNOWN;
-  enum GeoArrowCoordType coord_type = GEOARROW_COORD_TYPE_UNKNOWN;
-
-  switch (encoding) {
-    case GEOARROW_GEOS_ENCODING_WKT:
-      type = GEOARROW_TYPE_WKT;
-      break;
-    case GEOARROW_GEOS_ENCODING_WKB:
-      type = GEOARROW_TYPE_WKB;
-      break;
-    case GEOARROW_GEOS_ENCODING_GEOARROW:
-      coord_type = GEOARROW_COORD_TYPE_SEPARATE;
-      break;
-    case GEOARROW_GEOS_ENCODING_GEOARROW_INTERLEAVED:
-      coord_type = GEOARROW_COORD_TYPE_INTERLEAVED;
-      break;
-    default:
-      return EINVAL;
-  }
-
-  if (type == GEOARROW_TYPE_UNINITIALIZED) {
-    geometry_type = wkb_type % 1000;
-    dimensions = wkb_type / 1000 + 1;
-    type = GeoArrowMakeType(geometry_type, dimensions, GEOARROW_COORD_TYPE_SEPARATE);
-  }
-
-  GEOARROW_RETURN_NOT_OK(GeoArrowSchemaInitExtension(out, type));
-  return GEOARROW_OK;
-}
-
 static GeoArrowErrorCode GeoArrowGEOSArrayBuilderEnsureCoords(
     struct GeoArrowGEOSArrayBuilder* builder, uint32_t n_coords, int n_dims) {
   int64_t n_required = n_coords * n_dims;
@@ -890,4 +856,242 @@ void GeoArrowGEOSArrayReaderDestroy(struct GeoArrowGEOSArrayReader* reader) {
   }
 
   free(reader);
+}
+
+struct GeoArrowSchemaCalculator {
+  int geometry_type;
+  int dimensions;
+};
+
+GeoArrowGEOSErrorCode GeoArrowGEOSSchemaCalculatorCreate(
+    struct GeoArrowSchemaCalculator** out) {
+  struct GeoArrowSchemaCalculator* calc =
+      (struct GeoArrowSchemaCalculator*)malloc(sizeof(struct GeoArrowSchemaCalculator));
+  if (calc == NULL) {
+    *out = NULL;
+    return ENOMEM;
+  }
+
+  calc->geometry_type = -1;
+  calc->dimensions = GEOARROW_DIMENSIONS_UNKNOWN;
+  *out = calc;
+
+  return GEOARROW_OK;
+}
+
+static int GeometryType2(int x, int y) {
+  switch (x) {
+    case -1:
+      return y;
+    case GEOARROW_GEOMETRY_TYPE_GEOMETRY:
+      return x;
+    case GEOARROW_GEOMETRY_TYPE_POINT:
+      switch (y) {
+        case -1:
+          return x;
+        case GEOARROW_TYPE_POINT:
+        case GEOARROW_TYPE_MULTIPOINT:
+          return y;
+        default:
+          return GEOARROW_GEOMETRY_TYPE_GEOMETRY;
+      }
+    case GEOARROW_GEOMETRY_TYPE_LINESTRING:
+      switch (y) {
+        case -1:
+          return x;
+        case GEOARROW_TYPE_LINESTRING:
+        case GEOARROW_TYPE_MULTILINESTRING:
+          return y;
+        default:
+          return GEOARROW_GEOMETRY_TYPE_GEOMETRY;
+      }
+    case GEOARROW_GEOMETRY_TYPE_POLYGON:
+      switch (y) {
+        case -1:
+          return x;
+        case GEOARROW_TYPE_POLYGON:
+        case GEOARROW_TYPE_MULTIPOLYGON:
+          return y;
+        default:
+          return GEOARROW_GEOMETRY_TYPE_GEOMETRY;
+      }
+    case GEOARROW_GEOMETRY_TYPE_MULTIPOINT:
+      switch (y) {
+        case -1:
+          return x;
+        case GEOARROW_TYPE_POINT:
+        case GEOARROW_TYPE_MULTIPOINT:
+          return x;
+        default:
+          return GEOARROW_GEOMETRY_TYPE_GEOMETRY;
+      }
+    case GEOARROW_GEOMETRY_TYPE_MULTILINESTRING:
+      switch (y) {
+        case -1:
+          return x;
+        case GEOARROW_TYPE_LINESTRING:
+        case GEOARROW_TYPE_MULTILINESTRING:
+          return x;
+        default:
+          return GEOARROW_GEOMETRY_TYPE_GEOMETRY;
+      }
+    case GEOARROW_GEOMETRY_TYPE_MULTIPOLYGON:
+      switch (y) {
+        case -1:
+          return x;
+        case GEOARROW_TYPE_POLYGON:
+        case GEOARROW_TYPE_MULTIPOLYGON:
+          return x;
+        default:
+          return GEOARROW_GEOMETRY_TYPE_GEOMETRY;
+      }
+    case GEOARROW_GEOMETRY_TYPE_GEOMETRYCOLLECTION:
+      switch (y) {
+        case -1:
+          return x;
+        case GEOARROW_GEOMETRY_TYPE_GEOMETRYCOLLECTION:
+          return x;
+        default:
+          return GEOARROW_GEOMETRY_TYPE_GEOMETRY;
+      }
+    default:
+      return GEOARROW_GEOMETRY_TYPE_GEOMETRY;
+  }
+}
+
+static int Dimensions2(int x, int y) {
+  switch (x) {
+    case GEOARROW_DIMENSIONS_UNKNOWN:
+      return y;
+    case GEOARROW_DIMENSIONS_XY:
+      switch (y) {
+        case GEOARROW_DIMENSIONS_UNKNOWN:
+          return x;
+        default:
+          return y;
+      }
+    case GEOARROW_DIMENSIONS_XYZ:
+      switch (y) {
+        case GEOARROW_DIMENSIONS_UNKNOWN:
+          return x;
+        case GEOARROW_DIMENSIONS_XYM:
+          return GEOARROW_DIMENSIONS_XYZM;
+        default:
+          return y;
+      }
+    case GEOARROW_DIMENSIONS_XYM:
+      switch (y) {
+        case GEOARROW_DIMENSIONS_UNKNOWN:
+          return x;
+        case GEOARROW_DIMENSIONS_XYZ:
+          return GEOARROW_DIMENSIONS_XYZM;
+        default:
+          return y;
+      }
+    default:
+      return GEOARROW_DIMENSIONS_XYZM;
+  }
+}
+
+void GeoArrowGEOSSchemaCalculatorIngest(struct GeoArrowSchemaCalculator* calc,
+                                        int32_t* wkb_type, size_t n) {
+  for (size_t i = 0; i < n; i++) {
+    calc->geometry_type = GeometryType2(calc->geometry_type, wkb_type[i] % 1000);
+    calc->dimensions = Dimensions2(calc->dimensions, wkb_type[i] / 1000);
+  }
+}
+
+GeoArrowGEOSErrorCode GeoArrowGEOSSchemaCalculatorFinish(
+    struct GeoArrowSchemaCalculator* calc, enum GeoArrowGEOSEncoding encoding,
+    struct ArrowSchema* out) {
+  enum GeoArrowCoordType coord_type;
+  switch (encoding) {
+    case GEOARROW_GEOS_ENCODING_WKT:
+    case GEOARROW_GEOS_ENCODING_WKB:
+      return GeoArrowGEOSMakeSchema(encoding, 0, out);
+    case GEOARROW_GEOS_ENCODING_GEOARROW:
+      coord_type = GEOARROW_COORD_TYPE_INTERLEAVED;
+      break;
+    case GEOARROW_GEOS_ENCODING_GEOARROW_INTERLEAVED:
+      coord_type = GEOARROW_COORD_TYPE_INTERLEAVED;
+      break;
+    default:
+      return EINVAL;
+  }
+
+  enum GeoArrowGeometryType geometry_type;
+  switch (calc->geometry_type) {
+    case -1:
+      // We don't have an "empty"/"null" type to return, but "POINT" is also
+      // not quite right.
+      geometry_type = GEOARROW_GEOMETRY_TYPE_GEOMETRY;
+      break;
+    case GEOARROW_GEOMETRY_TYPE_POINT:
+    case GEOARROW_GEOMETRY_TYPE_LINESTRING:
+    case GEOARROW_GEOMETRY_TYPE_POLYGON:
+    case GEOARROW_GEOMETRY_TYPE_MULTIPOINT:
+    case GEOARROW_GEOMETRY_TYPE_MULTILINESTRING:
+    case GEOARROW_GEOMETRY_TYPE_MULTIPOLYGON:
+      geometry_type = (enum GeoArrowGeometryType)calc->geometry_type;
+      break;
+    default:
+      geometry_type = GEOARROW_GEOMETRY_TYPE_GEOMETRY;
+      break;
+  }
+
+  enum GeoArrowDimensions dimensions;
+  switch (calc->dimensions) {
+    case GEOARROW_DIMENSIONS_UNKNOWN:
+      dimensions = GEOARROW_DIMENSIONS_XY;
+      break;
+    case GEOARROW_DIMENSIONS_XY:
+    case GEOARROW_DIMENSIONS_XYZ:
+    case GEOARROW_DIMENSIONS_XYM:
+    case GEOARROW_DIMENSIONS_XYZM:
+      dimensions = (enum GeoArrowDimensions)calc->dimensions;
+      break;
+    default:
+      // Something may have gone wrong (invalid wkb_type input?)
+      geometry_type = GEOARROW_GEOMETRY_TYPE_GEOMETRY;
+      dimensions = GEOARROW_DIMENSIONS_XYZM;
+      break;
+  }
+
+  enum GeoArrowType type = GeoArrowMakeType(geometry_type, dimensions, coord_type);
+  GEOARROW_RETURN_NOT_OK(GeoArrowSchemaInitExtension(out, type));
+  return GEOARROW_OK;
+}
+
+GeoArrowGEOSErrorCode GeoArrowGEOSMakeSchema(int32_t encoding, int32_t wkb_type,
+                                             struct ArrowSchema* out) {
+  enum GeoArrowType type = GEOARROW_TYPE_UNINITIALIZED;
+  enum GeoArrowGeometryType geometry_type = GEOARROW_GEOMETRY_TYPE_GEOMETRY;
+  enum GeoArrowDimensions dimensions = GEOARROW_DIMENSIONS_UNKNOWN;
+  enum GeoArrowCoordType coord_type = GEOARROW_COORD_TYPE_UNKNOWN;
+
+  switch (encoding) {
+    case GEOARROW_GEOS_ENCODING_WKT:
+      type = GEOARROW_TYPE_WKT;
+      break;
+    case GEOARROW_GEOS_ENCODING_WKB:
+      type = GEOARROW_TYPE_WKB;
+      break;
+    case GEOARROW_GEOS_ENCODING_GEOARROW:
+      coord_type = GEOARROW_COORD_TYPE_SEPARATE;
+      break;
+    case GEOARROW_GEOS_ENCODING_GEOARROW_INTERLEAVED:
+      coord_type = GEOARROW_COORD_TYPE_INTERLEAVED;
+      break;
+    default:
+      return EINVAL;
+  }
+
+  if (type == GEOARROW_TYPE_UNINITIALIZED) {
+    geometry_type = wkb_type % 1000;
+    dimensions = wkb_type / 1000 + 1;
+    type = GeoArrowMakeType(geometry_type, dimensions, coord_type);
+  }
+
+  GEOARROW_RETURN_NOT_OK(GeoArrowSchemaInitExtension(out, type));
+  return GEOARROW_OK;
 }

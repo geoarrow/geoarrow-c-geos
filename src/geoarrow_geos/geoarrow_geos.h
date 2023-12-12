@@ -108,6 +108,18 @@ GeoArrowGEOSErrorCode GeoArrowGEOSArrayReaderRead(struct GeoArrowGEOSArrayReader
 
 void GeoArrowGEOSArrayReaderDestroy(struct GeoArrowGEOSArrayReader* reader);
 
+struct GeoArrowSchemaCalculator;
+
+GeoArrowGEOSErrorCode GeoArrowGEOSSchemaCalculatorCreate(
+    struct GeoArrowSchemaCalculator** out);
+
+void GeoArrowGEOSSchemaCalculatorIngest(struct GeoArrowSchemaCalculator* calc,
+                                        int32_t* wkb_type, size_t n);
+
+GeoArrowGEOSErrorCode GeoArrowGEOSSchemaCalculatorFinish(
+    struct GeoArrowSchemaCalculator* calc, enum GeoArrowGEOSEncoding encoding,
+    struct ArrowSchema* out);
+
 #ifdef __cplusplus
 }
 #endif
