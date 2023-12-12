@@ -489,8 +489,8 @@ const char* GeoArrowGEOSArrayReaderGetLastError(struct GeoArrowGEOSArrayReader* 
 }
 
 static GeoArrowErrorCode MakeGeomFromWKB(struct GeoArrowGEOSArrayReader* reader,
-                                         size_t offset, size_t length,
-                                         GEOSGeometry** out) {
+                                         size_t offset, size_t length, GEOSGeometry** out,
+                                         size_t* n_out) {
   offset += reader->array_view.offset[0];
 
   GeoArrowGEOSBitmapReaderInit(&reader->bitmap_reader, reader->array_view.validity_bitmap,
@@ -499,6 +499,7 @@ static GeoArrowErrorCode MakeGeomFromWKB(struct GeoArrowGEOSArrayReader* reader,
   for (size_t i = 0; i < length; i++) {
     if (GeoArrowGEOSBitmapReaderNextIsNull(&reader->bitmap_reader)) {
       out[i] = NULL;
+      *n_out += 1;
       continue;
     }
 
@@ -511,14 +512,16 @@ static GeoArrowErrorCode MakeGeomFromWKB(struct GeoArrowGEOSArrayReader* reader,
       GeoArrowErrorSet(&reader->error, "[%ld] GEOSWKBReader_read_r() failed", (long)i);
       return ENOMEM;
     }
+
+    *n_out += 1;
   }
 
   return GEOARROW_OK;
 }
 
 static GeoArrowErrorCode MakeGeomFromWKT(struct GeoArrowGEOSArrayReader* reader,
-                                         size_t offset, size_t length,
-                                         GEOSGeometry** out) {
+                                         size_t offset, size_t length, GEOSGeometry** out,
+                                         size_t* n_out) {
   offset += reader->array_view.offset[0];
 
   GeoArrowGEOSBitmapReaderInit(&reader->bitmap_reader, reader->array_view.validity_bitmap,
@@ -527,6 +530,7 @@ static GeoArrowErrorCode MakeGeomFromWKT(struct GeoArrowGEOSArrayReader* reader,
   for (size_t i = 0; i < length; i++) {
     if (GeoArrowGEOSBitmapReaderNextIsNull(&reader->bitmap_reader)) {
       out[i] = NULL;
+      *n_out += 1;
       continue;
     }
 
@@ -544,6 +548,8 @@ static GeoArrowErrorCode MakeGeomFromWKT(struct GeoArrowGEOSArrayReader* reader,
       GeoArrowErrorSet(&reader->error, "[%ld] GEOSWKBReader_read_r() failed", (long)i);
       return ENOMEM;
     }
+
+    *n_out += 1;
   }
 
   return GEOARROW_OK;
@@ -599,7 +605,7 @@ static GeoArrowErrorCode MakeCoordSeq(struct GeoArrowGEOSArrayReader* reader,
 }
 
 static GeoArrowErrorCode MakePoints(struct GeoArrowGEOSArrayReader* reader, size_t offset,
-                                    size_t length, GEOSGeometry** out) {
+                                    size_t length, GEOSGeometry** out, size_t* n_out) {
   int top_level =
       reader->array_view.schema_view.geometry_type == GEOARROW_GEOMETRY_TYPE_POINT;
   if (top_level) {
@@ -612,6 +618,7 @@ static GeoArrowErrorCode MakePoints(struct GeoArrowGEOSArrayReader* reader, size
   for (size_t i = 0; i < length; i++) {
     if (top_level && GeoArrowGEOSBitmapReaderNextIsNull(&reader->bitmap_reader)) {
       out[i] = NULL;
+      *n_out += 1;
       continue;
     }
 
@@ -622,14 +629,16 @@ static GeoArrowErrorCode MakePoints(struct GeoArrowGEOSArrayReader* reader, size
       GeoArrowErrorSet(&reader->error, "[%ld] GEOSGeom_createPoint_r() failed", (long)i);
       return ENOMEM;
     }
+
+    *n_out += 1;
   }
 
   return GEOARROW_OK;
 }
 
 static GeoArrowErrorCode MakeLinestrings(struct GeoArrowGEOSArrayReader* reader,
-                                         size_t offset, size_t length,
-                                         GEOSGeometry** out) {
+                                         size_t offset, size_t length, GEOSGeometry** out,
+                                         size_t* n_out) {
   offset += reader->array_view.offset[reader->array_view.n_offsets - 1];
   const int32_t* coord_offsets =
       reader->array_view.offsets[reader->array_view.n_offsets - 1];
@@ -645,6 +654,7 @@ static GeoArrowErrorCode MakeLinestrings(struct GeoArrowGEOSArrayReader* reader,
   for (size_t i = 0; i < length; i++) {
     if (top_level && GeoArrowGEOSBitmapReaderNextIsNull(&reader->bitmap_reader)) {
       out[i] = NULL;
+      *n_out += 1;
       continue;
     }
 
@@ -658,6 +668,8 @@ static GeoArrowErrorCode MakeLinestrings(struct GeoArrowGEOSArrayReader* reader,
                        (long)i);
       return ENOMEM;
     }
+
+    *n_out += 1;
   }
 
   return GEOARROW_OK;
@@ -688,7 +700,8 @@ static GeoArrowErrorCode MakeLinearrings(struct GeoArrowGEOSArrayReader* reader,
 }
 
 static GeoArrowErrorCode MakePolygons(struct GeoArrowGEOSArrayReader* reader,
-                                      size_t offset, size_t length, GEOSGeometry** out) {
+                                      size_t offset, size_t length, GEOSGeometry** out,
+                                      size_t* n_out) {
   offset += reader->array_view.offset[reader->array_view.n_offsets - 2];
   const int32_t* ring_offsets =
       reader->array_view.offsets[reader->array_view.n_offsets - 2];
@@ -703,6 +716,7 @@ static GeoArrowErrorCode MakePolygons(struct GeoArrowGEOSArrayReader* reader,
   for (size_t i = 0; i < length; i++) {
     if (top_level && GeoArrowGEOSBitmapReaderNextIsNull(&reader->bitmap_reader)) {
       out[i] = NULL;
+      *n_out += 1;
       continue;
     }
 
@@ -725,6 +739,8 @@ static GeoArrowErrorCode MakePolygons(struct GeoArrowGEOSArrayReader* reader,
                        (long)i);
       return ENOMEM;
     }
+
+    *n_out += 1;
   }
 
   return GEOARROW_OK;
@@ -732,12 +748,12 @@ static GeoArrowErrorCode MakePolygons(struct GeoArrowGEOSArrayReader* reader,
 
 typedef GeoArrowErrorCode (*GeoArrowGEOSPartMaker)(struct GeoArrowGEOSArrayReader* reader,
                                                    size_t offset, size_t length,
-                                                   GEOSGeometry** out);
+                                                   GEOSGeometry** out, size_t* n_out);
 
 static GeoArrowErrorCode MakeCollection(struct GeoArrowGEOSArrayReader* reader,
                                         size_t offset, size_t length, GEOSGeometry** out,
                                         int geom_level, int offset_level, int geos_type,
-                                        GeoArrowGEOSPartMaker part_maker) {
+                                        GeoArrowGEOSPartMaker part_maker, size_t* n_out) {
   offset += reader->array_view.offset[reader->array_view.n_offsets - offset_level];
   const int32_t* part_offsets =
       reader->array_view.offsets[reader->array_view.n_offsets - offset_level];
@@ -746,9 +762,11 @@ static GeoArrowErrorCode MakeCollection(struct GeoArrowGEOSArrayReader* reader,
   GeoArrowGEOSBitmapReaderInit(&reader->bitmap_reader, reader->array_view.validity_bitmap,
                                offset);
 
+  size_t part_n_out = 0;
   for (size_t i = 0; i < length; i++) {
     if (GeoArrowGEOSBitmapReaderNextIsNull(&reader->bitmap_reader)) {
       out[i] = NULL;
+      *n_out += 1;
       continue;
     }
 
@@ -760,8 +778,8 @@ static GeoArrowErrorCode MakeCollection(struct GeoArrowGEOSArrayReader* reader,
     } else {
       GEOARROW_RETURN_NOT_OK(
           GeoArrowGEOSArrayReaderEnsureScratch(reader, n_parts, geom_level));
-      GEOARROW_RETURN_NOT_OK(
-          part_maker(reader, part_offset, n_parts, reader->geoms[geom_level]));
+      GEOARROW_RETURN_NOT_OK(part_maker(reader, part_offset, n_parts,
+                                        reader->geoms[geom_level], &part_n_out));
       out[i] = GEOSGeom_createCollection_r(reader->handle, geos_type,
                                            reader->geoms[geom_level], n_parts);
       memset(reader->geoms[geom_level], 0, n_parts * sizeof(GEOSGeometry*));
@@ -772,6 +790,8 @@ static GeoArrowErrorCode MakeCollection(struct GeoArrowGEOSArrayReader* reader,
                        (long)i);
       return ENOMEM;
     }
+
+    *n_out += 1;
   }
 
   return GEOARROW_OK;
@@ -779,7 +799,8 @@ static GeoArrowErrorCode MakeCollection(struct GeoArrowGEOSArrayReader* reader,
 
 GeoArrowGEOSErrorCode GeoArrowGEOSArrayReaderRead(struct GeoArrowGEOSArrayReader* reader,
                                                   struct ArrowArray* array, size_t offset,
-                                                  size_t length, GEOSGeometry** out) {
+                                                  size_t length, GEOSGeometry** out,
+                                                  size_t* n_out) {
   GeoArrowGEOSArrayReaderResetScratch(reader);
 
   GEOARROW_RETURN_NOT_OK(
@@ -788,6 +809,7 @@ GeoArrowGEOSErrorCode GeoArrowGEOSArrayReaderRead(struct GeoArrowGEOSArrayReader
   GeoArrowGEOSBitmapReaderInit(&reader->bitmap_reader, NULL, 0);
 
   memset(out, 0, sizeof(GEOSGeometry*) * length);
+  *n_out = 0;
 
   GeoArrowErrorCode result;
   switch (reader->array_view.schema_view.type) {
@@ -800,7 +822,7 @@ GeoArrowGEOSErrorCode GeoArrowGEOSArrayReaderRead(struct GeoArrowGEOSArrayReader
         }
       }
 
-      result = MakeGeomFromWKB(reader, offset, length, out);
+      result = MakeGeomFromWKB(reader, offset, length, out, n_out);
       break;
     case GEOARROW_TYPE_WKT:
       if (reader->wkt_reader == NULL) {
@@ -811,46 +833,36 @@ GeoArrowGEOSErrorCode GeoArrowGEOSArrayReaderRead(struct GeoArrowGEOSArrayReader
         }
       }
 
-      result = MakeGeomFromWKT(reader, offset, length, out);
+      result = MakeGeomFromWKT(reader, offset, length, out, n_out);
       break;
     default:
       switch (reader->array_view.schema_view.geometry_type) {
         case GEOARROW_GEOMETRY_TYPE_POINT:
-          result = MakePoints(reader, offset, length, out);
+          result = MakePoints(reader, offset, length, out, n_out);
           break;
         case GEOARROW_GEOMETRY_TYPE_LINESTRING:
-          result = MakeLinestrings(reader, offset, length, out);
+          result = MakeLinestrings(reader, offset, length, out, n_out);
           break;
         case GEOARROW_GEOMETRY_TYPE_POLYGON:
-          result = MakePolygons(reader, offset, length, out);
+          result = MakePolygons(reader, offset, length, out, n_out);
           break;
         case GEOARROW_GEOMETRY_TYPE_MULTIPOINT:
           result = MakeCollection(reader, offset, length, out, 0, 1, GEOS_MULTIPOINT,
-                                  &MakePoints);
+                                  &MakePoints, n_out);
           break;
         case GEOARROW_GEOMETRY_TYPE_MULTILINESTRING:
           result = MakeCollection(reader, offset, length, out, 0, 2, GEOS_MULTILINESTRING,
-                                  &MakeLinestrings);
+                                  &MakeLinestrings, n_out);
           break;
         case GEOARROW_GEOMETRY_TYPE_MULTIPOLYGON:
           result = MakeCollection(reader, offset, length, out, 1, 3, GEOS_MULTIPOLYGON,
-                                  &MakePolygons);
+                                  &MakePolygons, n_out);
           break;
         default:
           GeoArrowErrorSet(&reader->error,
                            "GeoArrowGEOSArrayReaderRead not implemented for array type");
           return ENOTSUP;
       }
-  }
-
-  // If we failed, clean up any allocated geometries
-  if (result != GEOARROW_OK) {
-    for (size_t i = 0; i < length; i++) {
-      if (out[i] != NULL) {
-        GEOSGeom_destroy_r(reader->handle, out[i]);
-        out[i] = NULL;
-      }
-    }
   }
 
   return result;
