@@ -336,3 +336,37 @@ INSTANTIATE_TEST_SUITE_P(GeoArrowGEOSTest, EncodingTestFixture,
                                            GEOARROW_GEOS_ENCODING_GEOARROW_INTERLEAVED,
                                            GEOARROW_GEOS_ENCODING_WKB,
                                            GEOARROW_GEOS_ENCODING_WKT));
+
+TEST(GeoArrowGEOSTest, TestHppGeometryVector) {
+  GEOSCppHandle handle;
+  geoarrow::geos::GeometryVector geom(handle.handle);
+
+  geom.reserve(3);
+  geom.resize(3);
+  ASSERT_EQ(geom.size(), 3);
+  ASSERT_EQ(geom.borrow(0), nullptr);
+  ASSERT_EQ(geom.borrow(1), nullptr);
+  ASSERT_EQ(geom.borrow(2), nullptr);
+
+  geom.set(0, GEOSGeom_createEmptyPolygon_r(handle.handle));
+  geom.set(1, GEOSGeom_createEmptyLineString_r(handle.handle));
+  geom.set(2, GEOSGeom_createEmptyPoint_r(handle.handle));
+
+  geom.resize(2);
+  geom.resize(3);
+  ASSERT_NE(geom.borrow(0), nullptr);
+  ASSERT_NE(geom.borrow(1), nullptr);
+  ASSERT_EQ(geom.borrow(2), nullptr);
+
+  GEOSGeometry* geom1 = geom.take_ownership_of(1);
+  ASSERT_NE(geom1, nullptr);
+  GEOSGeom_destroy_r(handle.handle, geom1);
+  ASSERT_EQ(geom.borrow(1), nullptr);
+
+  geoarrow::geos::GeometryVector other = std::move(geom);
+  ASSERT_EQ(geom.size(), 0);
+  ASSERT_EQ(other.size(), 3);
+  ASSERT_NE(other.borrow(0), nullptr);
+  ASSERT_EQ(other.borrow(1), nullptr);
+  ASSERT_EQ(other.borrow(2), nullptr);
+}

@@ -11,6 +11,13 @@ class GeometryVector {
  public:
   GeometryVector(GEOSContextHandle_t handle) : handle_(handle) {}
 
+  GeometryVector(GeometryVector&& rhs)
+      : handle_(rhs.handle_), data_(std::move(rhs.data_)) {
+    rhs.data_.clear();
+  }
+
+  GeometryVector(GeometryVector& rhs) = delete;
+
   void reset(size_t offset, size_t length = 1) {
     for (size_t i = 0; i < length; i++) {
       GEOSGeometry* item = data_[offset + i];
@@ -28,11 +35,16 @@ class GeometryVector {
 
   GEOSGeometry* take_ownership_of(size_t i) {
     GEOSGeometry* item = data_[i];
-    reset(i);
+    data_[i] = nullptr;
     return item;
   }
 
   const GEOSGeometry* borrow(size_t i) { return data_[i]; }
+
+  void set(size_t i, GEOSGeometry* value) {
+    reset(i);
+    data_[i] = value;
+  }
 
   const GEOSGeometry** data() { return const_cast<const GEOSGeometry**>(data_.data()); }
 
