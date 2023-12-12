@@ -388,3 +388,17 @@ TEST(GeoArrowGEOSTest, TestHppArrayBuilder) {
   ASSERT_EQ(array->length, 0);
   ASSERT_EQ(array->n_buffers, 3);
 }
+
+TEST(GeoArrowGEOSTest, TestHppArrayReader) {
+  GEOSCppHandle handle;
+  geoarrow::geos::ArrayReader reader;
+  EXPECT_STREQ(reader.GetLastError(), "");
+
+  ASSERT_EQ(reader.InitFromEncoding(handle.handle, GEOARROW_GEOS_ENCODING_UNKNOWN),
+            EINVAL);
+  ASSERT_EQ(reader.InitFromEncoding(handle.handle, GEOARROW_GEOS_ENCODING_WKT),
+            GEOARROW_GEOS_OK);
+  EXPECT_STREQ(reader.GetLastError(), "");
+
+  geoarrow::geos::ArrayReader reader2 = std::move(reader);
+}
