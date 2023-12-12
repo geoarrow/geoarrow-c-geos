@@ -72,6 +72,10 @@ class ArrayBuilder {
  public:
   ArrayBuilder() : builder_(nullptr) {}
 
+  ArrayBuilder(ArrayBuilder&& rhs) : builder_(rhs.builder_) { rhs.builder_ = nullptr; }
+
+  ArrayBuilder(ArrayBuilder& rhs) = delete;
+
   ~ArrayBuilder() {
     if (builder_ != nullptr) {
       GeoArrowGEOSArrayBuilderDestroy(builder_);
@@ -125,6 +129,10 @@ class ArrayBuilder {
 class ArrayReader {
  public:
   ArrayReader() : reader_(nullptr) {}
+
+  ArrayReader(ArrayReader&& rhs) : reader_(rhs.reader_) { rhs.reader_ = nullptr; }
+
+  ArrayReader(ArrayReader& rhs) = delete;
 
   ~ArrayReader() {
     if (reader_ != nullptr) {

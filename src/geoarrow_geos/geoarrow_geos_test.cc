@@ -370,3 +370,21 @@ TEST(GeoArrowGEOSTest, TestHppGeometryVector) {
   ASSERT_EQ(other.borrow(1), nullptr);
   ASSERT_EQ(other.borrow(2), nullptr);
 }
+
+TEST(GeoArrowGEOSTest, TestHppArrayBuilder) {
+  GEOSCppHandle handle;
+  geoarrow::geos::ArrayBuilder builder;
+  EXPECT_STREQ(builder.GetLastError(), "");
+
+  ASSERT_EQ(builder.InitFromEncoding(handle.handle, GEOARROW_GEOS_ENCODING_UNKNOWN),
+            EINVAL);
+  ASSERT_EQ(builder.InitFromEncoding(handle.handle, GEOARROW_GEOS_ENCODING_WKT),
+            GEOARROW_GEOS_OK);
+  EXPECT_STREQ(builder.GetLastError(), "");
+
+  geoarrow::geos::ArrayBuilder builder2 = std::move(builder);
+  nanoarrow::UniqueArray array;
+  builder2.Finish(array.get());
+  ASSERT_EQ(array->length, 0);
+  ASSERT_EQ(array->n_buffers, 3);
+}
