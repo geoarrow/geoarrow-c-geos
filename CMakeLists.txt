@@ -24,7 +24,8 @@ set(GEOARROW_GEOS_VERSION_PATCH "${GEOARROW_GEOS_VERSION_PATCH}")
 
 option(GEOARROW_GEOS_BUILD_TESTS "Build tests" OFF)
 
-# Ensure geoarrow_c
+# Ensure geoarrow_c with namespace
+set(GEOARROW_NAMESPACE GeoArrowGEOS)
 FetchContent_Declare(
   geoarrow_c
   URL https://github.com/geoarrow/geoarrow-c/archive/22794ce83fae1e2e99511508fa936c1e4cb115cb.zip
