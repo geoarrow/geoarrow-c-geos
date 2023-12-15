@@ -438,6 +438,19 @@ std::string SchemaExtensionName(ArrowSchema* schema) {
   return std::string(value.data, value.size_bytes);
 }
 
+std::string SchemaExtensionDims(ArrowSchema* schema) {
+  if (std::string(schema->format) == "+l") {
+    return SchemaExtensionDims(schema->children[0]);
+  }
+
+  std::stringstream ss;
+  for (int64_t i = 0; i < schema->n_children; i++) {
+    ss << schema->children[i]->name;
+  }
+
+  return ss.str();
+}
+
 TEST(GeoArrowGEOSTest, TestSchemaCalcEmpty) {
   nanoarrow::UniqueSchema schema;
   ASSERT_EQ(SchemaFromWKT({}, GEOARROW_GEOS_ENCODING_UNKNOWN, schema.get()), EINVAL);
@@ -468,9 +481,10 @@ class SchemaCalcFixture : public ::testing::TestWithParam<std::vector<std::strin
 TEST_P(SchemaCalcFixture, TestSchemaCalcSingleType) {
   auto params = GetParam();
   std::string extension_name = params[0];
-  std::string non_null = params[1];
-  std::string non_null_simple = params[2];
-  std::string non_null_mixed = params[3];
+  std::string dimensions = params[1];
+  std::string non_null = params[2];
+  std::string non_null_simple = params[3];
+  std::string non_null_mixed = params[4];
 
   nanoarrow::UniqueSchema schema;
 
@@ -479,18 +493,21 @@ TEST_P(SchemaCalcFixture, TestSchemaCalcSingleType) {
   ASSERT_EQ(SchemaFromWKT({non_null}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
             NANOARROW_OK);
   EXPECT_EQ(SchemaExtensionName(schema.get()), extension_name);
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), dimensions);
 
   // non-null, null
   schema.reset();
   ASSERT_EQ(SchemaFromWKT({non_null, ""}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
             NANOARROW_OK);
   EXPECT_EQ(SchemaExtensionName(schema.get()), extension_name);
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), dimensions);
 
   // null, non-null
   schema.reset();
   ASSERT_EQ(SchemaFromWKT({"", non_null}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
             NANOARROW_OK);
   EXPECT_EQ(SchemaExtensionName(schema.get()), extension_name);
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), dimensions);
 
   // non-null, non-null
   schema.reset();
@@ -498,6 +515,7 @@ TEST_P(SchemaCalcFixture, TestSchemaCalcSingleType) {
       SchemaFromWKT({non_null, non_null}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
       NANOARROW_OK);
   EXPECT_EQ(SchemaExtensionName(schema.get()), extension_name);
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), dimensions);
 
   // non-null, EMPTY
   schema.reset();
@@ -505,6 +523,7 @@ TEST_P(SchemaCalcFixture, TestSchemaCalcSingleType) {
                           schema.get()),
             NANOARROW_OK);
   EXPECT_EQ(SchemaExtensionName(schema.get()), extension_name);
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), dimensions);
 
   // simple, multi
   schema.reset();
@@ -512,6 +531,7 @@ TEST_P(SchemaCalcFixture, TestSchemaCalcSingleType) {
                           schema.get()),
             NANOARROW_OK);
   EXPECT_EQ(SchemaExtensionName(schema.get()), extension_name);
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), dimensions);
 
   // multi, simple
   schema.reset();
@@ -519,6 +539,7 @@ TEST_P(SchemaCalcFixture, TestSchemaCalcSingleType) {
                           schema.get()),
             NANOARROW_OK);
   EXPECT_EQ(SchemaExtensionName(schema.get()), extension_name);
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), dimensions);
 
   // mixed
   schema.reset();
@@ -537,21 +558,25 @@ TEST_P(SchemaCalcFixture, TestSchemaCalcSingleType) {
 INSTANTIATE_TEST_SUITE_P(
     GeoArrowGEOSTest, SchemaCalcFixture,
     ::testing::Values(
-        std::vector<std::string>({"geoarrow.point", "POINT (0 1)", "",
+        // XY
+        std::vector<std::string>({"geoarrow.point", "xy", "POINT (0 1)", "",
                                   "LINESTRING (0 1, 2 3)"}),
-        std::vector<std::string>({"geoarrow.linestring", "LINESTRING (0 1, 2 3)", "",
-                                  "POINT (0 1)"}),
-        std::vector<std::string>({"geoarrow.polygon", "POLYGON ((0 0, 1 0, 0 1, 0 0))",
+        std::vector<std::string>({"geoarrow.linestring", "xy", "LINESTRING (0 1, 2 3)",
                                   "", "POINT (0 1)"}),
-        std::vector<std::string>({"geoarrow.multipoint", "MULTIPOINT (0 1)",
+        std::vector<std::string>({"geoarrow.polygon", "xy",
+                                  "POLYGON ((0 0, 1 0, 0 1, 0 0))", "", "POINT (0 1)"}),
+        std::vector<std::string>({"geoarrow.multipoint", "xy", "MULTIPOINT (0 1)",
                                   "POINT (0 1)", "LINESTRING (0 1, 2 3)"}),
-        std::vector<std::string>({"geoarrow.multilinestring",
+        std::vector<std::string>({"geoarrow.multilinestring", "xy",
                                   "MULTILINESTRING ((0 1, 2 3))", "LINESTRING (0 1, 2 3)",
                                   "POINT (0 1)"}),
-        std::vector<std::string>({"geoarrow.multipolygon",
+        std::vector<std::string>({"geoarrow.multipolygon", "xy",
                                   "MULTIPOLYGON (((0 0, 1 0, 0 1, 0 0)))",
                                   "POLYGON ((0 0, 1 0, 0 1, 0 0))", "POINT (0 1)"}),
-        std::vector<std::string>({"geoarrow.wkb", "GEOMETRYCOLLECTION (POINT (0 1))", "",
-                                  ""})
+        std::vector<std::string>({"geoarrow.wkb", "", "GEOMETRYCOLLECTION (POINT (0 1))",
+                                  "", ""}),
+        // XYZ
+        std::vector<std::string>({"geoarrow.point", "xyz", "POINT Z (0 1 2)",
+                                  "POINT (0 1)", "LINESTRING (0 1, 2 3)"})
 
             ));
