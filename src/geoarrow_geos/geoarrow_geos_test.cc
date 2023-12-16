@@ -405,6 +405,15 @@ TEST(GeoArrowGEOSTest, TestHppArrayReader) {
   geoarrow::geos::ArrayReader reader2 = std::move(reader);
 }
 
+GeoArrowGEOSErrorCode SchemaFromWkbType(const std::vector<int32_t>& wkb_type,
+                                        enum GeoArrowGEOSEncoding encoding,
+                                        ArrowSchema* out) {
+  geoarrow::geos::SchemaCalculator calc;
+  calc.Ingest(wkb_type.data(), wkb_type.size());
+
+  return calc.Finish(encoding, out);
+}
+
 GeoArrowGEOSErrorCode SchemaFromWKT(const std::vector<std::string>& wkt,
                                     enum GeoArrowGEOSEncoding encoding,
                                     ArrowSchema* out) {
@@ -424,10 +433,7 @@ GeoArrowGEOSErrorCode SchemaFromWKT(const std::vector<std::string>& wkt,
     wkb_type[i] = GeoArrowGEOSWKBType(handle.handle, geom.borrow(i));
   }
 
-  geoarrow::geos::SchemaCalculator calc;
-  calc.Ingest(wkb_type.data(), wkb_type.size());
-
-  return calc.Finish(encoding, out);
+  return SchemaFromWkbType(wkb_type, encoding, out);
 }
 
 std::string SchemaExtensionName(ArrowSchema* schema) {
@@ -453,24 +459,117 @@ std::string SchemaExtensionDims(ArrowSchema* schema) {
 
 TEST(GeoArrowGEOSTest, TestSchemaCalcEmpty) {
   nanoarrow::UniqueSchema schema;
-  ASSERT_EQ(SchemaFromWKT({}, GEOARROW_GEOS_ENCODING_UNKNOWN, schema.get()), EINVAL);
+  ASSERT_EQ(SchemaFromWkbType({}, GEOARROW_GEOS_ENCODING_UNKNOWN, schema.get()), EINVAL);
 
-  ASSERT_EQ(SchemaFromWKT({}, GEOARROW_GEOS_ENCODING_WKT, schema.get()), NANOARROW_OK);
+  ASSERT_EQ(SchemaFromWkbType({}, GEOARROW_GEOS_ENCODING_WKT, schema.get()),
+            NANOARROW_OK);
   ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.wkt");
 
   schema.reset();
-  ASSERT_EQ(SchemaFromWKT({}, GEOARROW_GEOS_ENCODING_WKB, schema.get()), NANOARROW_OK);
-  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.wkb");
-
-  schema.reset();
-  ASSERT_EQ(SchemaFromWKT({}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+  ASSERT_EQ(SchemaFromWkbType({}, GEOARROW_GEOS_ENCODING_WKB, schema.get()),
             NANOARROW_OK);
   ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.wkb");
 
   schema.reset();
-  ASSERT_EQ(SchemaFromWKT({}, GEOARROW_GEOS_ENCODING_GEOARROW_INTERLEAVED, schema.get()),
+  ASSERT_EQ(SchemaFromWkbType({}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
             NANOARROW_OK);
   ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.wkb");
+
+  schema.reset();
+  ASSERT_EQ(
+      SchemaFromWkbType({}, GEOARROW_GEOS_ENCODING_GEOARROW_INTERLEAVED, schema.get()),
+      NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.wkb");
+}
+
+TEST(GeoArrowGEOSTest, TestSchemaCalcZM) {
+  nanoarrow::UniqueSchema schema;
+
+  ASSERT_EQ(SchemaFromWkbType({1, 2001}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+            NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xyz");
+
+  schema.reset();
+  ASSERT_EQ(SchemaFromWkbType({2001, 1}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+            NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xyz");
+
+  schema.reset();
+  ASSERT_EQ(
+      SchemaFromWkbType({2001, 2001}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+      NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xyz");
+
+  schema.reset();
+  ASSERT_EQ(SchemaFromWkbType({1, 3001}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+            NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xym");
+
+  schema.reset();
+  ASSERT_EQ(SchemaFromWkbType({3001, 1}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+            NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xym");
+
+  schema.reset();
+  ASSERT_EQ(
+      SchemaFromWkbType({3001, 3001}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+      NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xym");
+
+  schema.reset();
+  ASSERT_EQ(
+      SchemaFromWkbType({3001, 3001}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+      NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xym");
+
+  schema.reset();
+  ASSERT_EQ(
+      SchemaFromWkbType({2001, 3001}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+      NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xyzm");
+
+  schema.reset();
+  ASSERT_EQ(
+      SchemaFromWkbType({3001, 2001}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+      NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xyzm");
+
+  schema.reset();
+  ASSERT_EQ(
+      SchemaFromWkbType({2001, 4001}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+      NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xyzm");
+
+  schema.reset();
+  ASSERT_EQ(
+      SchemaFromWkbType({4001, 2001}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+      NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xyzm");
+
+  schema.reset();
+  ASSERT_EQ(
+      SchemaFromWkbType({3001, 4001}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+      NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xyzm");
+
+  schema.reset();
+  ASSERT_EQ(
+      SchemaFromWkbType({4001, 3001}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+      NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xyzm");
 }
 
 class SchemaCalcFixture : public ::testing::TestWithParam<std::vector<std::string>> {
