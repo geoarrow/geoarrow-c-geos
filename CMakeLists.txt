@@ -24,12 +24,13 @@ set(GEOARROW_GEOS_VERSION_PATCH "${GEOARROW_GEOS_VERSION_PATCH}")
 
 option(GEOARROW_GEOS_BUILD_TESTS "Build tests" OFF)
 
-# Ensure geoarrow_c
+# Ensure geoarrow_c with namespace
+set(GEOARROW_NAMESPACE GeoArrowGEOS)
 FetchContent_Declare(
   geoarrow_c
-  URL https://github.com/geoarrow/geoarrow-c/archive/898af28230cf11c4804dae64090993c8c3173bd9.zip
+  URL https://github.com/geoarrow/geoarrow-c/archive/22794ce83fae1e2e99511508fa936c1e4cb115cb.zip
   URL_HASH
-    SHA256=bbac8132f64a59db88983347a0337e8a37a8d50f35af248075edc59ce934547b)
+    SHA256=3631aa2c0883a76d18bfa56395f780f8ff6eec49b2fad21c24f72bb3e15ceed7)
 
 FetchContent_MakeAvailable(geoarrow_c)
 

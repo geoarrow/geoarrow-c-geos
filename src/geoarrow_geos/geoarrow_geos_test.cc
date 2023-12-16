@@ -404,3 +404,278 @@ TEST(GeoArrowGEOSTest, TestHppArrayReader) {
 
   geoarrow::geos::ArrayReader reader2 = std::move(reader);
 }
+
+GeoArrowGEOSErrorCode SchemaFromWkbType(const std::vector<int32_t>& wkb_type,
+                                        enum GeoArrowGEOSEncoding encoding,
+                                        ArrowSchema* out) {
+  geoarrow::geos::SchemaCalculator calc;
+  calc.Ingest(wkb_type.data(), wkb_type.size());
+
+  return calc.Finish(encoding, out);
+}
+
+GeoArrowGEOSErrorCode SchemaFromWKT(const std::vector<std::string>& wkt,
+                                    enum GeoArrowGEOSEncoding encoding,
+                                    ArrowSchema* out) {
+  GEOSCppHandle handle;
+  GEOSCppWKTReader wkt_reader(handle.handle);
+  geoarrow::geos::GeometryVector geom(handle.handle);
+  geom.resize(wkt.size());
+  std::vector<int32_t> wkb_type(wkt.size());
+
+  for (size_t i = 0; i < wkt.size(); i++) {
+    if (wkt[i] == "") {
+      wkb_type[i] = 0;
+      continue;
+    }
+
+    wkt_reader.Read(wkt[i], geom.mutable_data() + i);
+    wkb_type[i] = GeoArrowGEOSWKBType(handle.handle, geom.borrow(i));
+  }
+
+  return SchemaFromWkbType(wkb_type, encoding, out);
+}
+
+std::string SchemaExtensionName(ArrowSchema* schema) {
+  ArrowStringView value;
+  value.data = "";
+  value.size_bytes = 0;
+  ArrowMetadataGetValue(schema->metadata, ArrowCharView("ARROW:extension:name"), &value);
+  return std::string(value.data, value.size_bytes);
+}
+
+std::string SchemaExtensionDims(ArrowSchema* schema) {
+  if (std::string(schema->format) == "+l") {
+    return SchemaExtensionDims(schema->children[0]);
+  }
+
+  std::stringstream ss;
+  for (int64_t i = 0; i < schema->n_children; i++) {
+    ss << schema->children[i]->name;
+  }
+
+  return ss.str();
+}
+
+TEST(GeoArrowGEOSTest, TestSchemaCalcEmpty) {
+  nanoarrow::UniqueSchema schema;
+  ASSERT_EQ(SchemaFromWkbType({}, GEOARROW_GEOS_ENCODING_UNKNOWN, schema.get()), EINVAL);
+
+  ASSERT_EQ(SchemaFromWkbType({}, GEOARROW_GEOS_ENCODING_WKT, schema.get()),
+            NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.wkt");
+
+  schema.reset();
+  ASSERT_EQ(SchemaFromWkbType({}, GEOARROW_GEOS_ENCODING_WKB, schema.get()),
+            NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.wkb");
+
+  schema.reset();
+  ASSERT_EQ(SchemaFromWkbType({}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+            NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.wkb");
+
+  schema.reset();
+  ASSERT_EQ(
+      SchemaFromWkbType({}, GEOARROW_GEOS_ENCODING_GEOARROW_INTERLEAVED, schema.get()),
+      NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.wkb");
+}
+
+TEST(GeoArrowGEOSTest, TestSchemaCalcZM) {
+  nanoarrow::UniqueSchema schema;
+
+  ASSERT_EQ(SchemaFromWkbType({1, 2001}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+            NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xyz");
+
+  schema.reset();
+  ASSERT_EQ(SchemaFromWkbType({2001, 1}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+            NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xyz");
+
+  schema.reset();
+  ASSERT_EQ(
+      SchemaFromWkbType({2001, 2001}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+      NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xyz");
+
+  schema.reset();
+  ASSERT_EQ(SchemaFromWkbType({1, 3001}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+            NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xym");
+
+  schema.reset();
+  ASSERT_EQ(SchemaFromWkbType({3001, 1}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+            NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xym");
+
+  schema.reset();
+  ASSERT_EQ(
+      SchemaFromWkbType({3001, 3001}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+      NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xym");
+
+  schema.reset();
+  ASSERT_EQ(
+      SchemaFromWkbType({3001, 3001}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+      NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xym");
+
+  schema.reset();
+  ASSERT_EQ(
+      SchemaFromWkbType({2001, 3001}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+      NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xyzm");
+
+  schema.reset();
+  ASSERT_EQ(
+      SchemaFromWkbType({3001, 2001}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+      NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xyzm");
+
+  schema.reset();
+  ASSERT_EQ(
+      SchemaFromWkbType({2001, 4001}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+      NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xyzm");
+
+  schema.reset();
+  ASSERT_EQ(
+      SchemaFromWkbType({4001, 2001}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+      NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xyzm");
+
+  schema.reset();
+  ASSERT_EQ(
+      SchemaFromWkbType({3001, 4001}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+      NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xyzm");
+
+  schema.reset();
+  ASSERT_EQ(
+      SchemaFromWkbType({4001, 3001}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+      NANOARROW_OK);
+  ASSERT_EQ(SchemaExtensionName(schema.get()), "geoarrow.point");
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), "xyzm");
+}
+
+class SchemaCalcFixture : public ::testing::TestWithParam<std::vector<std::string>> {
+ protected:
+  std::vector<std::string> params;
+};
+
+TEST_P(SchemaCalcFixture, TestSchemaCalcSingleType) {
+  auto params = GetParam();
+  std::string extension_name = params[0];
+  std::string dimensions = params[1];
+  std::string non_null = params[2];
+  std::string non_null_simple = params[3];
+  std::string non_null_mixed = params[4];
+
+  nanoarrow::UniqueSchema schema;
+
+  // Length 1
+  schema.reset();
+  ASSERT_EQ(SchemaFromWKT({non_null}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+            NANOARROW_OK);
+  EXPECT_EQ(SchemaExtensionName(schema.get()), extension_name);
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), dimensions);
+
+  // non-null, null
+  schema.reset();
+  ASSERT_EQ(SchemaFromWKT({non_null, ""}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+            NANOARROW_OK);
+  EXPECT_EQ(SchemaExtensionName(schema.get()), extension_name);
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), dimensions);
+
+  // null, non-null
+  schema.reset();
+  ASSERT_EQ(SchemaFromWKT({"", non_null}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+            NANOARROW_OK);
+  EXPECT_EQ(SchemaExtensionName(schema.get()), extension_name);
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), dimensions);
+
+  // non-null, non-null
+  schema.reset();
+  ASSERT_EQ(
+      SchemaFromWKT({non_null, non_null}, GEOARROW_GEOS_ENCODING_GEOARROW, schema.get()),
+      NANOARROW_OK);
+  EXPECT_EQ(SchemaExtensionName(schema.get()), extension_name);
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), dimensions);
+
+  // non-null, EMPTY
+  schema.reset();
+  ASSERT_EQ(SchemaFromWKT({non_null, "POINT EMPTY"}, GEOARROW_GEOS_ENCODING_GEOARROW,
+                          schema.get()),
+            NANOARROW_OK);
+  EXPECT_EQ(SchemaExtensionName(schema.get()), extension_name);
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), dimensions);
+
+  // simple, multi
+  schema.reset();
+  ASSERT_EQ(SchemaFromWKT({non_null_simple, non_null}, GEOARROW_GEOS_ENCODING_GEOARROW,
+                          schema.get()),
+            NANOARROW_OK);
+  EXPECT_EQ(SchemaExtensionName(schema.get()), extension_name);
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), dimensions);
+
+  // multi, simple
+  schema.reset();
+  ASSERT_EQ(SchemaFromWKT({non_null, non_null_simple}, GEOARROW_GEOS_ENCODING_GEOARROW,
+                          schema.get()),
+            NANOARROW_OK);
+  EXPECT_EQ(SchemaExtensionName(schema.get()), extension_name);
+  EXPECT_EQ(SchemaExtensionDims(schema.get()), dimensions);
+
+  // mixed
+  schema.reset();
+  ASSERT_EQ(SchemaFromWKT({non_null, non_null_mixed}, GEOARROW_GEOS_ENCODING_GEOARROW,
+                          schema.get()),
+            NANOARROW_OK);
+  EXPECT_EQ(SchemaExtensionName(schema.get()), "geoarrow.wkb");
+
+  schema.reset();
+  ASSERT_EQ(SchemaFromWKT({non_null_mixed, non_null}, GEOARROW_GEOS_ENCODING_GEOARROW,
+                          schema.get()),
+            NANOARROW_OK);
+  EXPECT_EQ(SchemaExtensionName(schema.get()), "geoarrow.wkb");
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    GeoArrowGEOSTest, SchemaCalcFixture,
+    ::testing::Values(
+        // XY
+        std::vector<std::string>({"geoarrow.point", "xy", "POINT (0 1)", "",
+                                  "LINESTRING (0 1, 2 3)"}),
+        std::vector<std::string>({"geoarrow.linestring", "xy", "LINESTRING (0 1, 2 3)",
+                                  "", "POINT (0 1)"}),
+        std::vector<std::string>({"geoarrow.polygon", "xy",
+                                  "POLYGON ((0 0, 1 0, 0 1, 0 0))", "", "POINT (0 1)"}),
+        std::vector<std::string>({"geoarrow.multipoint", "xy", "MULTIPOINT (0 1)",
+                                  "POINT (0 1)", "LINESTRING (0 1, 2 3)"}),
+        std::vector<std::string>({"geoarrow.multilinestring", "xy",
+                                  "MULTILINESTRING ((0 1, 2 3))", "LINESTRING (0 1, 2 3)",
+                                  "POINT (0 1)"}),
+        std::vector<std::string>({"geoarrow.multipolygon", "xy",
+                                  "MULTIPOLYGON (((0 0, 1 0, 0 1, 0 0)))",
+                                  "POLYGON ((0 0, 1 0, 0 1, 0 0))", "POINT (0 1)"}),
+        std::vector<std::string>({"geoarrow.wkb", "", "GEOMETRYCOLLECTION (POINT (0 1))",
+                                  "", ""}),
+        // XYZ
+        std::vector<std::string>({"geoarrow.point", "xyz", "POINT Z (0 1 2)",
+                                  "POINT (0 1)", "LINESTRING (0 1, 2 3)"})
+
+            ));
